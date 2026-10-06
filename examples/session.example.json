@@ -1,0 +1,9 @@
+{
+  "AmToken": "YOUR_TOKEN",
+  "amDomain": "region.iotdreamcatcher.net",
+  "amPort": 443,
+  "UserId": "YOUR_USER_ID",
+  "userDB": "YOUR_USER_DB",
+  "homeID": 1,
+  "homeDB": "YOUR_HOME_DB"
+}
