@@ -5,7 +5,7 @@ from check_public_tree import inspect_file
 
 class PublicationChecks(unittest.TestCase):
     def test_rejects_captures_and_vendor_binaries(self):
-        for path in ('captures/reply.json', '.analysis/source.java', 'vendor/lib.so', 'session.json', 'zones.json', 'it.local.lucine/settings.json'):
+        for path in ('captures/reply.json', '.analysis/source.java', 'vendor/lib.so', 'session.json', 'zones.json', 'scenes.json', 'it.local.lucine/settings.json'):
             self.assertTrue(inspect_file(path, b'{}'))
 
     def test_rejects_absolute_workstation_paths(self):
