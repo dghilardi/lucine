@@ -23,6 +23,8 @@ reqwest = { version = "0.12", features = ["json"] }
 rumqttc = { version = "0.25", default-features = false, features = ["use-native-tls"] }
 uuid = { version = "1", features = ["v4"] }
 tempfile = "3"
+tauri-plugin-autostart = "2"
+tauri-plugin-single-instance = "2"
 
 [profile.release]
 strip = true

@@ -4,7 +4,7 @@ This document identifies direct open-source dependencies and the public project'
 
 | Dependency | Role | Declared license |
 |---|---|---|
-| Tauri, tauri-build, @tauri-apps/api, @tauri-apps/cli | Native shell / build tools | MIT OR Apache-2.0 |
+| Tauri, tauri-build, tauri-plugin-autostart, tauri-plugin-single-instance, @tauri-apps/api, @tauri-apps/cli | Native shell / build tools | MIT OR Apache-2.0 |
 | Lucide | Interface icons | ISC, with included Feather notices |
 | serde, serde_json, reqwest, tempfile | Native implementation | MIT OR Apache-2.0 |
 | Tokio | Async runtime | MIT |
