@@ -10,7 +10,8 @@ Lucine is an independent project, unaffiliated with Chuango or DreamCatcher. Tho
 - Power, brightness and warm / neutral / cool white controls.
 - Device-confirmed state, per-bulb connection errors and manual refresh.
 - Light / dark system theme and keyboard controls.
-- Custom zones: select bulbs in settings, then use **Accendi** / **Spegni** in each zone’s tray submenu.
+- Custom zones with power, brightness and warm / neutral / cool white controls from the window and tray.
+- Local scenes with distinct power, brightness and white settings for each bulb, activated from the window or tray.
 - Optional launch at Linux login, initially disabled, opening in the tray.
 - System tray with **Apri Lucine** and **Esci**. Closing the window hides it in the tray; repeated launches reopen the existing instance.
 
@@ -59,7 +60,11 @@ While visible and idle, Lucine polls once per minute. Refresh and import do not 
 
 Open **Impostazioni → Zone nella tray**, enter a name and select at least one bulb, then choose **Crea zona**. Existing zones can be edited or deleted. Membership is stored locally in `zones.json` next to the session, with private filesystem permissions; it is not a cloud room or a shared configuration.
 
-Each tray zone has separate **Accendi** and **Spegni** actions. Lucine rechecks the current account's supported devices before sending commands. Missing or offline bulbs produce partial failures without preventing the remaining bulbs from completing. Already matching bulbs are left alone. Up to four bulbs run concurrently; repeated tray clicks are blocked while a zone action is pending. The tray reports confirmed results, and failures open the window for review. Changing a zone never sends commands.
+Expand **Zone e scene** in the window to choose a zone and apply power, brightness (1–100%) or a white preset. Each tray zone also offers **Accendi**, **Spegni**, brightness shortcuts (25 / 50 / 75 / 100%) and white presets. Brightness and white adjustments require bulbs to be on: off bulbs stay off and are reported individually. Lucine rechecks the current account's supported devices before sending commands. Missing or offline bulbs produce partial failures without preventing the remaining bulbs from completing. Already matching bulbs are left alone. Up to four bulbs run concurrently; repeated tray clicks are blocked while a zone action is pending. The tray reports confirmed results, and failures open the window for review. Changing a zone never sends commands.
+
+Open **Impostazioni → Scene locali** to name a scene and select its bulbs. For each selected bulb choose **Accesa** with brightness and white, or **Spenta**. Saving, editing or deleting a scene never sends hardware commands. Activate it explicitly from **Zone e scene** or **Scene** in the tray. Scenes are stored privately in local `scenes.json`, next to the session; they do not import, modify or synchronize the manufacturer's cloud scenes or rooms.
+
+Scenes use the same account checks and concurrency limit as zones. For an on target, Lucine confirms power, then white, then brightness; an off target only switches off. A failure stops subsequent steps for that bulb and leaves other bulbs running. There is no atomic multi-device transaction or rollback: an earlier step may have succeeded before a later failure. Review errors and refresh before retrying. Scenes do not run at startup, and timers / schedules are not implemented.
 
 Enable **Avvia Lucine all’accesso a Linux** only if wanted. This starts the app after logging into the desktop, not before login or as a system service. Startup opens in the tray and never switches bulbs automatically. It uses the executable / AppImage path from which the setting is enabled: move the AppImage to a permanent location first, and disable then re-enable this option if that path changes. Development builds also register their own build path if you enable the setting there.
 

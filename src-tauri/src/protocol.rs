@@ -1,3 +1,4 @@
+use crate::scenes::{validate_targets, Target};
 use rumqttc::{AsyncClient, Event, MqttOptions, Packet, QoS, TlsConfiguration, Transport};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -207,7 +208,13 @@ impl Backend {
         control_device(&session, &device, kind, value).await
     }
 
-    pub async fn power_zone(&self, ids: &[String], on: bool) -> Result<Vec<Lamp>, String> {
+    pub async fn control_zone(
+        &self,
+        ids: &[String],
+        kind: &str,
+        value: u64,
+    ) -> Result<Vec<Lamp>, String> {
+        validate_zone_command(kind, value)?;
         let _guard = self
             .gate
             .try_lock()
@@ -216,9 +223,43 @@ impl Backend {
         let devices = self.fetch_devices(&session).await?;
         *self.devices.lock().await = devices.iter().map(|d| (d.id.clone(), d.clone())).collect();
         let (selected, mut missing) = select_zone(devices, ids)?;
+        let kind = kind.to_string();
         let mut lamps = apply_zone(selected, move |device| {
             let session = session.clone();
-            async move { control_device(&session, &device, "power", u64::from(on)).await }
+            let kind = kind.clone();
+            async move { control_device_checked(&session, &device, &kind, value, true).await }
+        })
+        .await;
+        lamps.append(&mut missing);
+        Ok(lamps)
+    }
+    pub async fn apply_scene(&self, targets: &[Target]) -> Result<Vec<Lamp>, String> {
+        validate_targets(targets)?;
+        let _guard = self
+            .gate
+            .try_lock()
+            .map_err(|_| "Attendi il completamento dell’operazione in corso.")?;
+        let session = self.get_session().await?;
+        let devices = self.fetch_devices(&session).await?;
+        *self.devices.lock().await = devices.iter().map(|d| (d.id.clone(), d.clone())).collect();
+        let ids: Vec<_> = targets
+            .iter()
+            .map(|target| target.device_id.clone())
+            .collect();
+        let (selected, mut missing) = select_zone(devices, &ids)?;
+        let targets: HashMap<_, _> = targets
+            .iter()
+            .map(|target| (target.device_id.clone(), target.clone()))
+            .collect();
+        let mut lamps = apply_zone(selected, move |device| {
+            let session = session.clone();
+            let target = targets[&device.id].clone();
+            async move {
+                apply_target(&target, |kind, value| {
+                    control_device(&session, &device, kind, value)
+                })
+                .await
+            }
         })
         .await;
         lamps.append(&mut missing);
@@ -232,7 +273,53 @@ async fn control_device(
     kind: &str,
     value: u64,
 ) -> Result<LampState, String> {
+    control_device_checked(session, device, kind, value, false).await
+}
+
+fn validate_zone_command(kind: &str, value: u64) -> Result<(), String> {
+    if matches!(
+        (kind, value),
+        ("power", 0..=1) | ("brightness", 1..=100) | ("white", 160..=162)
+    ) {
+        Ok(())
+    } else {
+        Err("Comando della zona non valido.".into())
+    }
+}
+
+fn check_zone_state(current: &Value, kind: &str) -> Result<(), String> {
+    if kind != "power" && !decode_state(current).on {
+        return Err("Lampadina spenta: accendila prima di regolare luminosità o bianco.".into());
+    }
+    Ok(())
+}
+
+async fn apply_target<F, Fut>(target: &Target, mut control: F) -> Result<LampState, String>
+where
+    F: FnMut(&'static str, u64) -> Fut,
+    Fut: std::future::Future<Output = Result<LampState, String>>,
+{
+    validate_targets(std::slice::from_ref(target))?;
+    if !target.on {
+        return control("power", 0).await;
+    }
+    // Confirm each step before continuing; failure leaves the device for manual review.
+    control("power", 1).await?;
+    control("white", target.white.unwrap()).await?;
+    control("brightness", u64::from(target.brightness.unwrap())).await
+}
+
+async fn control_device_checked(
+    session: &Session,
+    device: &Device,
+    kind: &str,
+    value: u64,
+    preserve_off: bool,
+) -> Result<LampState, String> {
     let current = exchange(session, device, None).await?;
+    if preserve_off {
+        check_zone_state(&current, kind)?;
+    }
     let request = build_command(kind, value, &current)?;
     if kind == "power" && decode_state(&current).on == (value == 1) {
         return Ok(decode_state(&current));
@@ -787,5 +874,82 @@ mod tests {
         assert_eq!(results.len(), 10);
         assert!(peak.load(Ordering::SeqCst) <= 4);
         assert_eq!(active.load(Ordering::SeqCst), 0);
+    }
+    #[test]
+    fn zone_settings_do_not_turn_off_bulbs_on() {
+        let off = json!({"mo":224});
+        assert!(check_zone_state(&off, "brightness").is_err());
+        assert!(check_zone_state(&off, "white").is_err());
+        assert!(check_zone_state(&off, "power").is_ok());
+        assert!(validate_zone_command("brightness", 0).is_err());
+        assert!(validate_zone_command("white", 168).is_err());
+    }
+    #[tokio::test]
+    async fn scenes_confirm_white_before_brightness_and_stop_on_failure() {
+        let target = Target {
+            device_id: "demo-1".into(),
+            on: true,
+            white: Some(161),
+            brightness: Some(35),
+        };
+        let mut calls = Vec::new();
+        let result = apply_target(&target, |kind, value| {
+            calls.push((kind, value));
+            async {
+                Ok(LampState {
+                    on: true,
+                    mode: 161,
+                    brightness: 35,
+                    white: None,
+                })
+            }
+        })
+        .await
+        .unwrap();
+        assert_eq!(
+            calls,
+            vec![("power", 1), ("white", 161), ("brightness", 35)]
+        );
+        assert_eq!(result.brightness, 35);
+        calls.clear();
+        assert!(apply_target(&target, |kind, value| {
+            calls.push((kind, value));
+            async move {
+                if kind == "white" {
+                    Err("Offline".into())
+                } else {
+                    Ok(LampState {
+                        on: true,
+                        mode: 160,
+                        brightness: 50,
+                        white: None,
+                    })
+                }
+            }
+        })
+        .await
+        .is_err());
+        assert_eq!(calls, vec![("power", 1), ("white", 161)]);
+        calls.clear();
+        let off = Target {
+            on: false,
+            white: None,
+            brightness: None,
+            ..target
+        };
+        apply_target(&off, |kind, value| {
+            calls.push((kind, value));
+            async {
+                Ok(LampState {
+                    on: false,
+                    mode: 224,
+                    brightness: 0,
+                    white: None,
+                })
+            }
+        })
+        .await
+        .unwrap();
+        assert_eq!(calls, vec![("power", 0)]);
     }
 }

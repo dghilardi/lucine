@@ -1,7 +1,10 @@
+mod local_store;
 mod protocol;
+mod scenes;
 mod zones;
 
 use protocol::{Backend, Lamp, LampState};
+use scenes::{Scene, Scenes, Target};
 use std::{
     path::PathBuf,
     sync::{
@@ -74,7 +77,7 @@ async fn save_zone(
     device_ids: Vec<String>,
 ) -> Result<Vec<Zone>, String> {
     let values = zones.save(id, name, device_ids).await?;
-    update_saved_zones(&app, &values);
+    update_saved_groups(&app).await;
     Ok(values)
 }
 
@@ -85,7 +88,7 @@ async fn delete_zone(
     id: String,
 ) -> Result<Vec<Zone>, String> {
     let values = zones.delete(&id).await?;
-    update_saved_zones(&app, &values);
+    update_saved_groups(&app).await;
     Ok(values)
 }
 
@@ -95,28 +98,126 @@ struct TrayStatus {
     item: Mutex<Option<MenuItem<tauri::Wry>>>,
 }
 
-fn tray_menu(app: &tauri::AppHandle, zones: &[Zone]) -> tauri::Result<Menu<tauri::Wry>> {
+#[tauri::command]
+async fn list_scenes(scenes: State<'_, Scenes>) -> Result<Vec<Scene>, String> {
+    scenes.list().await
+}
+
+#[tauri::command]
+async fn save_scene(
+    app: tauri::AppHandle,
+    scenes: State<'_, Scenes>,
+    id: Option<String>,
+    name: String,
+    targets: Vec<Target>,
+) -> Result<Vec<Scene>, String> {
+    let values = scenes.save(id, name, targets).await?;
+    update_saved_groups(&app).await;
+    Ok(values)
+}
+
+#[tauri::command]
+async fn delete_scene(
+    app: tauri::AppHandle,
+    scenes: State<'_, Scenes>,
+    id: String,
+) -> Result<Vec<Scene>, String> {
+    let values = scenes.delete(&id).await?;
+    update_saved_groups(&app).await;
+    Ok(values)
+}
+
+#[tauri::command]
+async fn run_zone(
+    app: tauri::AppHandle,
+    id: String,
+    kind: String,
+    value: u64,
+) -> Result<Vec<Lamp>, String> {
+    run_action(&app, DesktopAction::Zone { id, kind, value }).await
+}
+
+#[tauri::command]
+async fn run_scene(app: tauri::AppHandle, id: String) -> Result<Vec<Lamp>, String> {
+    run_action(&app, DesktopAction::Scene { id }).await
+}
+
+enum DesktopAction {
+    Zone {
+        id: String,
+        kind: String,
+        value: u64,
+    },
+    Scene {
+        id: String,
+    },
+}
+
+fn tray_menu(
+    app: &tauri::AppHandle,
+    zones: &[Zone],
+    scenes: &[Scene],
+) -> tauri::Result<Menu<tauri::Wry>> {
     let menu = Menu::new(app)?;
-    let show = MenuItem::with_id(app, "show", "Apri Lucine", true, None::<&str>)?;
-    menu.append(&show)?;
+    menu.append(&MenuItem::with_id(
+        app,
+        "show",
+        "Apri Lucine",
+        true,
+        None::<&str>,
+    )?)?;
     let available = !app.state::<TrayStatus>().busy.load(Ordering::SeqCst);
     for zone in zones {
-        let on = MenuItem::with_id(
-            app,
-            format!("zone-on:{}", zone.id),
-            "Accendi",
-            available,
-            None::<&str>,
-        )?;
-        let off = MenuItem::with_id(
-            app,
-            format!("zone-off:{}", zone.id),
-            "Spegni",
-            available,
-            None::<&str>,
-        )?;
-        let submenu = Submenu::with_items(app, &zone.name, true, &[&on, &off])?;
-        menu.append(&submenu)?;
+        let group = Submenu::new(app, &zone.name, true)?;
+        for (kind, choices) in [
+            (
+                "power",
+                vec![(1, "Accendi".to_string()), (0, "Spegni".to_string())],
+            ),
+            (
+                "brightness",
+                [25, 50, 75, 100]
+                    .into_iter()
+                    .map(|v| (v, format!("{v}%")))
+                    .collect(),
+            ),
+            (
+                "white",
+                vec![
+                    (160, "Caldo".into()),
+                    (161, "Neutro".into()),
+                    (162, "Freddo".into()),
+                ],
+            ),
+        ] {
+            let submenu = Submenu::new(
+                app,
+                if kind == "brightness" {
+                    "Luminosità"
+                } else {
+                    "Bianco"
+                },
+                true,
+            )?;
+            for (value, label) in choices {
+                let item = MenuItem::with_id(
+                    app,
+                    format!("zone:{}:{kind}:{value}", zone.id),
+                    label,
+                    available,
+                    None::<&str>,
+                )?;
+                if kind == "power" {
+                    group.append(&item)?;
+                } else {
+                    submenu.append(&item)?;
+                }
+            }
+            if kind != "power" {
+                group.append(&submenu)?;
+            }
+        }
+        menu.append(&group)?;
     }
     if zones.is_empty() {
         menu.append(&MenuItem::new(
@@ -126,6 +227,25 @@ fn tray_menu(app: &tauri::AppHandle, zones: &[Zone]) -> tauri::Result<Menu<tauri
             None::<&str>,
         )?)?;
     }
+    let scene_menu = Submenu::new(app, "Scene", true)?;
+    for scene in scenes {
+        scene_menu.append(&MenuItem::with_id(
+            app,
+            format!("scene:{}", scene.id),
+            &scene.name,
+            available,
+            None::<&str>,
+        )?)?;
+    }
+    if scenes.is_empty() {
+        scene_menu.append(&MenuItem::new(
+            app,
+            "Crea una scena nelle impostazioni",
+            false,
+            None::<&str>,
+        )?)?;
+    }
+    menu.append(&scene_menu)?;
     let status = MenuItem::with_id(app, "status", "Pronto", false, None::<&str>)?;
     menu.append(&status)?;
     *app.state::<TrayStatus>().item.lock().unwrap() = Some(status);
@@ -133,28 +253,28 @@ fn tray_menu(app: &tauri::AppHandle, zones: &[Zone]) -> tauri::Result<Menu<tauri
     Ok(menu)
 }
 
-fn update_tray(app: &tauri::AppHandle, zones: &[Zone]) -> Result<(), String> {
+async fn update_tray(app: &tauri::AppHandle) -> Result<(), String> {
+    // An unreadable section must not remove the other section's valid shortcuts.
+    let zones = app.state::<Zones>().list().await.unwrap_or_default();
+    let scenes = app.state::<Scenes>().list().await.unwrap_or_default();
     let tray = app
         .tray_by_id("main-tray")
         .ok_or("La tray non è disponibile.")?;
     tray.set_menu(Some(
-        tray_menu(app, zones).map_err(|_| "Non riesco ad aggiornare il menu della tray.")?,
+        tray_menu(app, &zones, &scenes)
+            .map_err(|_| "Non riesco ad aggiornare il menu della tray.")?,
     ))
     .map_err(|_| "Non riesco ad aggiornare il menu della tray.".into())
 }
 
-fn update_saved_zones(app: &tauri::AppHandle, zones: &[Zone]) {
-    // Persistence has succeeded: do not report a failed save and invite duplicates.
-    if update_tray(app, zones).is_err() {
-        let _ = app.emit(
-            "zone-result",
-            serde_json::json!({
-                "message": "Zone salvate, ma il menu della tray non è aggiornato. Riavvia Lucine.",
-                "lamps": null
-            }),
-        );
+async fn update_saved_groups(app: &tauri::AppHandle) {
+    if update_tray(app).await.is_err() {
+        let _ = app.emit("zone-result", serde_json::json!({
+            "message": "Configurazione salvata, ma il menu della tray non è aggiornato. Riavvia Lucine.", "lamps": null
+        }));
         show_window(app);
     }
+    let _ = app.emit("groups-changed", ());
 }
 
 fn show_window(app: &tauri::AppHandle) {
@@ -165,60 +285,86 @@ fn show_window(app: &tauri::AppHandle) {
     }
 }
 
-fn zone_event(app: &tauri::AppHandle, id: &str, on: bool) {
+fn tray_action(id: &str) -> Option<DesktopAction> {
+    if let Some(id) = id.strip_prefix("scene:") {
+        return Some(DesktopAction::Scene { id: id.into() });
+    }
+    let mut parts = id.strip_prefix("zone:")?.split(':');
+    let action = DesktopAction::Zone {
+        id: parts.next()?.into(),
+        kind: parts.next()?.into(),
+        value: parts.next()?.parse().ok()?,
+    };
+    if parts.next().is_some() {
+        None
+    } else {
+        Some(action)
+    }
+}
+
+async fn run_action(app: &tauri::AppHandle, action: DesktopAction) -> Result<Vec<Lamp>, String> {
     if app.state::<TrayStatus>().busy.swap(true, Ordering::SeqCst) {
-        return;
+        return Err("Attendi il completamento dell’operazione in corso.".into());
     }
     let _ = app.emit("zone-busy", true);
-    let app = app.clone();
-    let id = id.to_string();
-    tauri::async_runtime::spawn(async move {
-        let result = async {
-            let zones = app.state::<Zones>().list().await?;
-            let zone = zones
-                .iter()
-                .find(|zone| zone.id == id)
-                .ok_or("Zona non trovata.")?;
-            update_tray(&app, &zones)?;
-            if let Some(item) = app.state::<TrayStatus>().item.lock().unwrap().as_ref() {
-                let _ = item.set_text("Operazione in corso…");
-            }
-            app.state::<Arc<Backend>>()
-                .power_zone(&zone.device_ids, on)
-                .await
-        }
-        .await;
-        app.state::<TrayStatus>()
-            .busy
-            .store(false, Ordering::SeqCst);
-        let _ = app.emit("zone-busy", false);
-        let (message, failed) = match &result {
-            Ok(lamps) => {
-                let confirmed = lamps.iter().filter(|lamp| lamp.error.is_none()).count();
-                (
-                    format!("{} di {} lampadine confermate", confirmed, lamps.len()),
-                    confirmed != lamps.len(),
-                )
-            }
-            Err(error) => (error.clone(), true),
-        };
-        if let Ok(zones) = app.state::<Zones>().list().await {
-            let _ = update_tray(&app, &zones);
-        }
+    let result = async {
+        update_tray(app).await?;
         if let Some(item) = app.state::<TrayStatus>().item.lock().unwrap().as_ref() {
-            let _ = item.set_text(&message);
+            let _ = item.set_text("Operazione in corso…");
         }
-        if let Some(tray) = app.tray_by_id("main-tray") {
-            let _ = tray.set_tooltip(Some(&message));
+        match action {
+            DesktopAction::Zone { id, kind, value } => {
+                let zones = app.state::<Zones>().list().await?;
+                let zone = zones
+                    .iter()
+                    .find(|zone| zone.id == id)
+                    .ok_or("Zona non trovata.")?;
+                app.state::<Arc<Backend>>()
+                    .control_zone(&zone.device_ids, &kind, value)
+                    .await
+            }
+            DesktopAction::Scene { id } => {
+                let scenes = app.state::<Scenes>().list().await?;
+                let scene = scenes
+                    .iter()
+                    .find(|scene| scene.id == id)
+                    .ok_or("Scena non trovata.")?;
+                app.state::<Arc<Backend>>()
+                    .apply_scene(&scene.targets)
+                    .await
+            }
         }
-        let _ = app.emit(
-            "zone-result",
-            serde_json::json!({"message":message,"lamps":result.as_ref().ok()}),
-        );
-        if failed {
-            show_window(&app);
+    }
+    .await;
+    let (message, failed) = match &result {
+        Ok(lamps) => {
+            let confirmed = lamps.iter().filter(|lamp| lamp.error.is_none()).count();
+            (
+                format!("{} di {} lampadine confermate", confirmed, lamps.len()),
+                confirmed != lamps.len(),
+            )
         }
-    });
+        Err(error) => (error.clone(), true),
+    };
+    app.state::<TrayStatus>()
+        .busy
+        .store(false, Ordering::SeqCst);
+    let _ = update_tray(app).await;
+    if let Some(item) = app.state::<TrayStatus>().item.lock().unwrap().as_ref() {
+        let _ = item.set_text(&message);
+    }
+    if let Some(tray) = app.tray_by_id("main-tray") {
+        let _ = tray.set_tooltip(Some(&message));
+    }
+    let _ = app.emit(
+        "zone-result",
+        serde_json::json!({"message":message,"lamps":result.as_ref().ok()}),
+    );
+    let _ = app.emit("zone-busy", false);
+    if failed {
+        show_window(app);
+    }
+    result
 }
 
 fn config_path() -> PathBuf {
@@ -273,6 +419,7 @@ pub fn run() {
                 .build(),
         )
         .manage(Zones::new(config_path().with_file_name("zones.json")))
+        .manage(Scenes::new(config_path().with_file_name("scenes.json")))
         .manage(TrayStatus::default())
         .manage(backend)
         .invoke_handler(tauri::generate_handler![
@@ -283,12 +430,19 @@ pub fn run() {
             set_autostart,
             list_zones,
             save_zone,
-            delete_zone
+            delete_zone,
+            list_scenes,
+            save_scene,
+            delete_scene,
+            run_zone,
+            run_scene
         ])
         .setup(move |app| {
             let zones =
                 tauri::async_runtime::block_on(app.state::<Zones>().list()).unwrap_or_default();
-            let menu = tray_menu(app.handle(), &zones)?;
+            let scenes =
+                tauri::async_runtime::block_on(app.state::<Scenes>().list()).unwrap_or_default();
+            let menu = tray_menu(app.handle(), &zones, &scenes)?;
             let icon = tauri::image::Image::from_bytes(include_bytes!("../icons/icon.png"))?;
             TrayIconBuilder::with_id("main-tray")
                 .icon(icon)
@@ -300,10 +454,11 @@ pub fn run() {
                         show_window(app);
                     } else if id == "quit" {
                         app.exit(0);
-                    } else if let Some(zone) = id.strip_prefix("zone-on:") {
-                        zone_event(app, zone, true);
-                    } else if let Some(zone) = id.strip_prefix("zone-off:") {
-                        zone_event(app, zone, false);
+                    } else if let Some(action) = tray_action(id) {
+                        let app = app.clone();
+                        tauri::async_runtime::spawn(async move {
+                            let _ = run_action(&app, action).await;
+                        });
                     }
                 })
                 .build(app)?;

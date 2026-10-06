@@ -36,7 +36,9 @@ input:disabled {
   cursor: default;
 }
 button:focus-visible,
-input:focus-visible {
+input:focus-visible,
+select:focus-visible,
+summary:focus-visible {
   outline: 3px solid var(--focus);
   outline-offset: 4px;
 }
@@ -574,4 +576,90 @@ dialog .check-row input {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
+}
+
+#group-shortcuts {
+  border-top: 1px solid var(--line);
+  padding-top: 18px;
+  margin: 18px 0;
+}
+#group-shortcuts summary {
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+}
+#group-shortcuts .field-help {
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--muted);
+  margin: 12px 0;
+}
+.zone-shortcuts > label {
+  display: block;
+  margin: 14px 0;
+}
+.zone-adjust {
+  display: grid;
+  grid-template-columns: minmax(120px, 1fr) auto;
+  align-items: end;
+  gap: 12px;
+  margin: 16px 0;
+}
+#group-shortcuts label,
+.target-controls label {
+  font-size: 12px;
+  color: var(--muted);
+}
+#group-shortcuts input,
+#group-shortcuts select,
+dialog select {
+  display: block;
+  width: 100%;
+  margin-top: 7px;
+  padding: 9px 10px;
+  font: inherit;
+  color: inherit;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+}
+#group-shortcuts input:disabled,
+#group-shortcuts select:disabled,
+dialog select:disabled {
+  opacity: 0.5;
+}
+.scene-target {
+  padding: 14px 0;
+  border-bottom: 1px solid var(--line);
+}
+.scene-target:last-child {
+  border-bottom: none;
+}
+.target-controls {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 10px;
+}
+#scene-form fieldset {
+  margin: 18px 0;
+}
+.target-controls input {
+  margin-bottom: 0;
+  margin-top: 7px;
+  padding: 9px 10px;
+}
+#scene-shortcuts {
+  margin-top: 18px;
+}
+.scene-target .check-row span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+#scene-shortcuts button {
+  max-width: 100%;
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-align: left;
 }

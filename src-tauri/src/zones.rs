@@ -1,5 +1,6 @@
+use crate::local_store::{read_local, write_local};
 use serde::{Deserialize, Serialize};
-use std::{io::Write, path::PathBuf};
+use std::path::PathBuf;
 use tokio::sync::Mutex;
 
 #[derive(Clone, Deserialize, Serialize)]
@@ -17,16 +18,10 @@ pub struct Zones {
 
 impl Zones {
     pub fn new(path: PathBuf) -> Self {
-        let values = match std::fs::read(&path) {
-            Ok(raw) if raw.len() <= 1024 * 1024 => serde_json::from_slice::<Vec<Zone>>(&raw)
-                .map_err(|_| "Il file delle zone non è valido.".into())
-                .and_then(|zones| {
-                    validate(&zones)?;
-                    Ok(zones)
-                }),
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(Vec::new()),
-            _ => Err("Non riesco a leggere le zone salvate.".into()),
-        };
+        let values = read_local::<Zone>(&path).and_then(|zones| {
+            validate(&zones)?;
+            Ok(zones)
+        });
         Self {
             path,
             values: Mutex::new(values),
@@ -83,30 +78,7 @@ impl Zones {
     }
 
     fn persist(&self, zones: &[Zone]) -> Result<(), String> {
-        let parent = self
-            .path
-            .parent()
-            .ok_or("Percorso delle zone non valido.")?;
-        let mut directory = std::fs::DirBuilder::new();
-        directory.recursive(true);
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::DirBuilderExt;
-            directory.mode(0o700);
-        }
-        directory
-            .create(parent)
-            .map_err(|_| "Non riesco a creare la cartella delle zone.")?;
-        let mut file =
-            tempfile::NamedTempFile::new_in(parent).map_err(|_| "Non riesco a salvare le zone.")?;
-        serde_json::to_writer(&mut file, zones).map_err(|_| "Non riesco a salvare le zone.")?;
-        file.flush().map_err(|_| "Non riesco a salvare le zone.")?;
-        file.as_file()
-            .sync_all()
-            .map_err(|_| "Non riesco a salvare le zone.")?;
-        file.persist(&self.path)
-            .map_err(|_| "Non riesco a salvare le zone.")?;
-        Ok(())
+        write_local(&self.path, zones)
     }
 }
 

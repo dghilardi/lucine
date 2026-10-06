@@ -6,6 +6,10 @@ This document records user-visible changes and limitations. Changes follow Keep 
 
 ### Added
 
+- Zone brightness and white controls in the window and tray, preserving off bulbs.
+- Local scene editor with per-bulb targets and explicit activation from the window / tray.
+- Shared private configuration persistence and hardware-free scene regression tests.
+
 - User-defined local zones with tray power commands, bounded concurrency and partial-failure reporting.
 - Optional Linux login startup in the tray and single-instance window reopening.
 - Settings editor for zone creation, membership changes and deletion, with hardware-free regression tests.

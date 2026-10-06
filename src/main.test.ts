@@ -198,4 +198,50 @@ describe("lamp controls", () => {
     );
     expect(invoke.mock.calls).toEqual([["refresh"]]);
   });
+  it("blocks lamp controls immediately when a zone shortcut starts", async () => {
+    invoke.mockImplementation(async (command: string) => {
+      if (command === "list_zones")
+        return [
+          { id: "demo-zone", name: "Zona demo", deviceIds: ["demo-device"] },
+        ];
+      if (command === "list_scenes") return [];
+      return demo();
+    });
+    await start();
+    const details =
+      document.querySelector<HTMLDetailsElement>("#group-shortcuts")!;
+    details.open = true;
+    details.dispatchEvent(new Event("toggle"));
+    await flush();
+    range().value = "60";
+    range().dispatchEvent(new Event("change"));
+    let finish!: (value: unknown) => void;
+    invoke.mockImplementation((command: string) =>
+      command === "run_zone"
+        ? new Promise((resolve) => {
+            finish = resolve;
+          })
+        : Promise.resolve(demo()),
+    );
+    document.querySelector<HTMLButtonElement>("[data-power='0']")!.click();
+    expect(power().disabled).toBe(true);
+    await vi.advanceTimersByTimeAsync(400);
+    expect(invoke).toHaveBeenCalledWith("run_zone", {
+      id: "demo-zone",
+      kind: "power",
+      value: 0,
+    });
+    expect(
+      invoke.mock.calls.filter(([command]) => command === "control"),
+    ).toHaveLength(0);
+    finish([
+      {
+        ...demo()[0],
+        state: { on: false, mode: 224, brightness: 40, white: null },
+      },
+    ]);
+    await flush();
+    expect(power().disabled).toBe(false);
+    expect(power().getAttribute("aria-checked")).toBe("false");
+  });
 });

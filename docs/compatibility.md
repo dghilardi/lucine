@@ -11,6 +11,8 @@ This document defines the support boundary. Expand it only with reproducible, au
 | RGB bulbs, scenes beyond the white controls, cameras, alarms, plugs | Unsupported |
 | Local LAN control, pairing, account creation, desktop login / renewal | Not implemented |
 | Local zone grouping / tray power / optional login startup | Implemented; hardware-free tests cover grouping and UI behavior; no new live-hardware tests for zone commands |
+| Local scene activation and zone brightness / white | Implemented using existing supported commands; covered by synthetic tests, without new live-hardware validation |
+| Cloud rooms / scenes import, timers / schedules | Not implemented |
 | Linux | Initial target; other operating systems are untested |
 
 Device enumeration is dynamic. Unsupported product IDs are ignored; Lucine does not probe other accounts, devices or topics. The number of rows is not fixed to an installation.

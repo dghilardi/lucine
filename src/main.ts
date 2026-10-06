@@ -9,6 +9,8 @@ import {
 } from "lucide";
 import "./style.css";
 import { settings } from "./settings";
+import { scenesEditor } from "./scenes";
+import { shortcuts } from "./shortcuts";
 import { listen } from "@tauri-apps/api/event";
 
 type State = {
@@ -42,13 +44,15 @@ document.querySelector<HTMLDivElement>("#app")!.innerHTML = `
     <div class="section-heading"><h2>Le tue lampadine</h2><span id="summary" role="status">Collegamento in corso…</span></div>
     <div id="notice" class="notice" role="status" hidden></div>
     <div id="lamps" aria-label="Lampadine"></div>
+    <details id="group-shortcuts"></details>
     <div id="empty" class="empty" hidden><span class="empty-icon"><i data-lucide="lightbulb"></i></span><h3>Collega le tue luci</h3><p>Importa una sessione DreamCatcher Life dalle impostazioni per ritrovare le lampadine associate al tuo account.</p><button id="connect" class="primary-button">Collega account <i data-lucide="arrow-right"></i></button></div>
   </main>
   <footer><span class="connection"><span id="connection-dot" class="dot"></span><span id="connection-text">Connessione al cloud</span></span><span id="updated">In attesa dello stato</span></footer>
   <dialog id="settings-dialog" aria-labelledby="settings-title">
     <div class="dialog-heading"><h2 id="settings-title">Impostazioni</h2><button type="button" id="close-settings" class="icon-button" aria-label="Chiudi impostazioni"><i data-lucide="x"></i></button></div>
     <section class="settings-section"><h3>Avvio</h3><label class="check-row"><input id="autostart" type="checkbox" disabled><span>Avvia Lucine all’accesso a Linux</span></label><p class="field-help">Si apre nella tray, senza cambiare lo stato delle luci. Se sposti l’AppImage, disattiva e riattiva questa opzione dal nuovo percorso.</p><p id="autostart-error" class="error" role="alert" hidden></p></section>
-    <section class="settings-section"><h3>Zone nella tray</h3><p class="field-help">Raggruppa le lampadine per accenderle e spegnerle dal menu della tray.</p><div id="zone-list"></div><p id="zones-empty" class="field-help">Non hai ancora creato zone.</p><form id="zone-form"><label for="zone-name">Nome della zona</label><input id="zone-name" maxlength="80" placeholder="Nome della zona" required><fieldset><legend>Lampadine della zona</legend><div id="zone-members"></div></fieldset><p id="zone-error" class="error" role="alert" hidden></p><div class="form-actions"><button id="save-zone" class="primary-button" type="submit" disabled>Crea zona</button><button id="cancel-zone" class="secondary-button" type="button" hidden>Annulla modifica</button></div></form></section>
+    <section class="settings-section"><h3>Zone nella tray</h3><p class="field-help">Raggruppa le lampadine per controllarle dalla tray o da “Zone e scene”.</p><div id="zone-list"></div><p id="zones-empty" class="field-help">Non hai ancora creato zone.</p><form id="zone-form"><label for="zone-name">Nome della zona</label><input id="zone-name" maxlength="80" placeholder="Nome della zona" required><fieldset><legend>Lampadine della zona</legend><div id="zone-members"></div></fieldset><p id="zone-error" class="error" role="alert" hidden></p><div class="form-actions"><button id="save-zone" class="primary-button" type="submit" disabled>Crea zona</button><button id="cancel-zone" class="secondary-button" type="button" hidden>Annulla modifica</button></div></form></section>
+    <section id="scene-settings" class="settings-section"></section>
     <section class="settings-section"><h3>Account DreamCatcher Life</h3><form id="session-form"><p>Importa una sessione autorizzata dell’app Android. Dopo l’importazione puoi controllare le luci senza tenere aperto l’emulatore.</p><label for="session-path">File della sessione</label><input id="session-path" type="text" placeholder="/percorso/session.json" required autocomplete="off" spellcheck="false"><p class="field-help">Il token resta sul tuo PC. Se la sessione scade, importa un file aggiornato.</p><p id="session-error" class="error" role="alert" hidden></p><button id="import" class="primary-button" type="submit">Importa sessione <i data-lucide="arrow-right"></i></button></form></section>
   </dialog>
   <template id="lamp-template"><article class="lamp-row"><div class="lamp-top"><div class="lamp-title"><span class="lamp-icon"><i data-lucide="lightbulb"></i></span><div><h3></h3><span class="lamp-description">Lettura dello stato…</span></div></div><button class="power-button" type="button" role="switch" aria-checked="false"><span class="switch-track"><span></span></span><span class="power-label">In attesa</span></button></div><div class="lamp-controls"><div class="brightness-control"><div class="control-label"><label>Luminosità</label><output>—</output></div><input class="brightness" type="range" min="1" max="100" step="1" value="1"></div><fieldset class="white-control"><legend>Bianco</legend><div class="segmented"><button type="button" data-mode="160">Caldo</button><button type="button" data-mode="161">Neutro</button><button type="button" data-mode="162">Freddo</button></div></fieldset></div><p class="lamp-error error" role="alert" hidden></p></article></template>`;
@@ -63,9 +67,15 @@ function icons() {
   });
 }
 const loadSettings = settings(dialog, () => lamps);
+const loadScenes = scenesEditor($("#scene-settings"), () => lamps);
+const groupShortcuts = shortcuts(
+  $<HTMLDetailsElement>("#group-shortcuts"),
+  () => zoneBusy || refreshing || busy.size > 0,
+  runGroup,
+);
 function openSettings() {
   dialog.showModal();
-  void loadSettings();
+  void Promise.all([loadSettings(), loadScenes()]);
 }
 $("#settings").addEventListener("click", openSettings);
 $("#connect").addEventListener("click", openSettings);
@@ -97,6 +107,7 @@ function describe(state: State | null) {
 }
 
 function render() {
+  groupShortcuts.sync();
   const container = $("#lamps");
   for (const [id, row] of rows)
     if (!lamps.some((lamp) => lamp.id === id)) {
@@ -287,6 +298,37 @@ async function control(id: string, kind: string, value: number) {
   }
 }
 
+function applyGroupResult(updated: Lamp[], message?: string) {
+  for (const lamp of updated) {
+    const existing = lamps.find((item) => item.id === lamp.id);
+    if (existing) Object.assign(existing, lamp);
+  }
+  render();
+  const confirmed = updated.filter((lamp) => !lamp.error).length;
+  $("#notice").hidden = false;
+  $("#notice").textContent =
+    message ?? `${confirmed} di ${updated.length} lampadine confermate`;
+}
+async function runGroup(
+  command: "run_zone" | "run_scene",
+  args: Record<string, unknown>,
+) {
+  if (!native || zoneBusy || refreshing || busy.size) return;
+  zoneBusy = true;
+  for (const timer of timers.values()) clearTimeout(timer);
+  timers.clear();
+  render();
+  try {
+    applyGroupResult(await invoke<Lamp[]>(command, args));
+  } catch (message) {
+    $("#notice").hidden = false;
+    $("#notice").textContent = String(message);
+  } finally {
+    zoneBusy = false;
+    render();
+  }
+}
+
 $("#session-form").addEventListener("submit", async (event) => {
   event.preventDefault();
   const error = $("#session-error");
@@ -312,6 +354,7 @@ $("#session-form").addEventListener("submit", async (event) => {
   }
 });
 if (native) {
+  void listen("groups-changed", () => groupShortcuts.changed()).catch(() => {});
   void listen<boolean>("zone-busy", (event) => {
     zoneBusy = event.payload;
     if (zoneBusy) {
@@ -324,13 +367,7 @@ if (native) {
     "zone-result",
     (event) => {
       const result = event.payload;
-      if (result.lamps) {
-        for (const updated of result.lamps) {
-          const existing = lamps.find((lamp) => lamp.id === updated.id);
-          if (existing) Object.assign(existing, updated);
-        }
-        render();
-      }
+      if (result.lamps) applyGroupResult(result.lamps, result.message);
       $("#notice").hidden = false;
       $("#notice").textContent = result.message;
     },
