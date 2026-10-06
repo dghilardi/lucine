@@ -20,3 +20,6 @@ src-tauri/gen/
 *.deb
 session*.json
 !examples/session.example.json
+
+zones.json
+it.local.lucine/

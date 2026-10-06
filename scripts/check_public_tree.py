@@ -11,7 +11,7 @@ import subprocess
 import sys
 
 FORBIDDEN_PARTS = {'.analysis', '.venv', '.impeccable', 'captures', 'secrets',
-                   'node_modules', 'target', 'dist', '__pycache__', 'gen'}
+                   'node_modules', 'it.local.lucine', 'target', 'dist', '__pycache__', 'gen'}
 FORBIDDEN_SUFFIXES = {'.apk', '.aab', '.dex', '.so', '.java', '.log', '.pyc',
                       '.AppImage', '.deb', '.jks', '.keystore', '.pem'}
 
@@ -21,7 +21,7 @@ def inspect_file(name: str, data: bytes) -> list[str]:
     problems = []
     if FORBIDDEN_PARTS.intersection(path.parts) or path.suffix in FORBIDDEN_SUFFIXES:
         problems.append('private or generated artifact')
-    if path.name.startswith('.env') or (path.name.startswith('session') and path.suffix == '.json' and name != 'examples/session.example.json'):
+    if path.name == 'zones.json' or path.name.startswith('.env') or (path.name.startswith('session') and path.suffix == '.json' and name != 'examples/session.example.json'):
         problems.append('credential file')
     if path.suffix == '.png' and name != 'src-tauri/icons/icon.png':
         problems.append('unreviewed bitmap asset')
