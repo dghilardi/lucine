@@ -21,7 +21,7 @@ def inspect_file(name: str, data: bytes) -> list[str]:
     problems = []
     if FORBIDDEN_PARTS.intersection(path.parts) or path.suffix in FORBIDDEN_SUFFIXES:
         problems.append('private or generated artifact')
-    if path.name == 'zones.json' or path.name.startswith('.env') or (path.name.startswith('session') and path.suffix == '.json' and name != 'examples/session.example.json'):
+    if path.name in {'zones.json', 'scenes.json'} or path.name.startswith('.env') or (path.name.startswith('session') and path.suffix == '.json' and name != 'examples/session.example.json'):
         problems.append('credential file')
     if path.suffix == '.png' and name != 'src-tauri/icons/icon.png':
         problems.append('unreviewed bitmap asset')
