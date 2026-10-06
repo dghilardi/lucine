@@ -1,0 +1,35 @@
+[
+  {
+    "id": "demo-1",
+    "name": "Lampadina demo 1",
+    "state": {
+      "on": true,
+      "mode": 160,
+      "brightness": 40,
+      "white": "warm"
+    },
+    "error": null
+  },
+  {
+    "id": "demo-2",
+    "name": "Lampadina demo 2",
+    "state": {
+      "on": true,
+      "mode": 161,
+      "brightness": 70,
+      "white": "neutral"
+    },
+    "error": null
+  },
+  {
+    "id": "demo-3",
+    "name": "Lampadina demo 3",
+    "state": {
+      "on": true,
+      "mode": 162,
+      "brightness": 90,
+      "white": "cool"
+    },
+    "error": null
+  }
+]

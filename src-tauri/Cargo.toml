@@ -1,0 +1,30 @@
+[package]
+name = "lucine"
+version = "0.1.0"
+description = "Controllo desktop delle lampadine DreamCatcher Life"
+edition = "2021"
+license = "MIT"
+rust-version = "1.92"
+default-run = "lucine"
+
+[lib]
+name = "lucine_lib"
+crate-type = ["lib", "cdylib", "staticlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["tray-icon", "image-png"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["time", "sync", "macros", "rt-multi-thread"] }
+reqwest = { version = "0.12", features = ["json"] }
+rumqttc = { version = "0.25", default-features = false, features = ["use-native-tls"] }
+uuid = { version = "1", features = ["v4"] }
+tempfile = "3"
+
+[profile.release]
+strip = true
+lto = "thin"
+codegen-units = 16
