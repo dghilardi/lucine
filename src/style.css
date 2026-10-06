@@ -512,3 +512,66 @@ dialog .field-help {
     transition: none !important;
   }
 }
+
+dialog {
+  max-width: 540px;
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+}
+.settings-section + .settings-section {
+  border-top: 1px solid var(--line);
+  margin-top: 24px;
+  padding-top: 22px;
+}
+.settings-section h3 {
+  font-size: 14px;
+  margin-bottom: 14px;
+}
+dialog .check-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+dialog .check-row input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  padding: 0;
+  flex-shrink: 0;
+  accent-color: var(--accent);
+}
+#zone-form fieldset {
+  margin: 18px 0;
+}
+.zone-entry {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 12px;
+  font-size: 13px;
+}
+.zone-entry > span {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.secondary-button {
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  padding: 7px 9px;
+  font-size: 12px;
+  background: transparent;
+}
+.secondary-button:hover {
+  background: var(--accent-soft);
+}
+.secondary-button:disabled {
+  opacity: 0.5;
+}
+.form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}

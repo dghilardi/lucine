@@ -2,9 +2,22 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const native = vi.hoisted(() => ({ value: true }));
 const invoke = vi.hoisted(() => vi.fn());
+const listeners = vi.hoisted(
+  () => new Map<string, (event: { payload: unknown }) => void>(),
+);
 vi.mock("@tauri-apps/api/core", () => ({
   invoke,
   isTauri: () => native.value,
+}));
+vi.mock("@tauri-apps/api/event", () => ({
+  listen: vi
+    .fn()
+    .mockImplementation(
+      async (name: string, callback: (event: { payload: unknown }) => void) => {
+        listeners.set(name, callback);
+        return () => {};
+      },
+    ),
 }));
 vi.mock("lucide", () => ({
   createIcons: vi.fn(),
@@ -31,6 +44,7 @@ const power = () => document.querySelector<HTMLButtonElement>(".power-button")!;
 
 beforeEach(() => {
   vi.resetModules();
+  listeners.clear();
   vi.useFakeTimers();
   document.body.innerHTML = '<div id="app"></div>';
   native.value = true;
@@ -153,5 +167,35 @@ describe("lamp controls", () => {
     await flush();
     expect(power().disabled).toBe(true);
     expect(range().disabled).toBe(true);
+  });
+  it("blocks individual controls and cancels pending brightness during tray operations", async () => {
+    await start();
+    range().value = "60";
+    range().dispatchEvent(new Event("change"));
+    listeners.get("zone-busy")!({ payload: true });
+    expect(power().disabled).toBe(true);
+    await vi.advanceTimersByTimeAsync(400);
+    expect(invoke.mock.calls).toEqual([["refresh"]]);
+    listeners.get("zone-busy")!({ payload: false });
+    expect(power().disabled).toBe(false);
+  });
+  it("applies device-confirmed tray results to visible rows", async () => {
+    await start();
+    listeners.get("zone-result")!({
+      payload: {
+        message: "Zona aggiornata",
+        lamps: [
+          {
+            ...demo()[0],
+            state: { on: false, mode: 224, brightness: 40, white: null },
+          },
+        ],
+      },
+    });
+    expect(power().getAttribute("aria-checked")).toBe("false");
+    expect(document.querySelector("#notice")!.textContent).toBe(
+      "Zona aggiornata",
+    );
+    expect(invoke.mock.calls).toEqual([["refresh"]]);
   });
 });

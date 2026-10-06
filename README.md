@@ -10,7 +10,9 @@ Lucine is an independent project, unaffiliated with Chuango or DreamCatcher. Tho
 - Power, brightness and warm / neutral / cool white controls.
 - Device-confirmed state, per-bulb connection errors and manual refresh.
 - Light / dark system theme and keyboard controls.
-- System tray with **Apri Lucine** and **Esci**. Closing the window hides it in the tray.
+- Custom zones: select bulbs in settings, then use **Accendi** / **Spegni** in each zone’s tray submenu.
+- Optional launch at Linux login, initially disabled, opening in the tray.
+- System tray with **Apri Lucine** and **Esci**. Closing the window hides it in the tray; repeated launches reopen the existing instance.
 
 Compatibility is currently limited to white bulbs identified by the service as `product_id: "12"` (reported as G95G by the Android app). Other products, RGB, firmware versions and regions have not been validated. See [compatibility](docs/compatibility.md).
 
@@ -52,6 +54,14 @@ The CLI also supports import and a read-only check:
 The local session is stored in `$XDG_CONFIG_HOME/it.local.lucine/session.json`, or `~/.config/it.local.lucine/session.json` when `XDG_CONFIG_HOME` is unset. On Linux the file has `0600` permissions. It is a plaintext credential file, not an encrypted vault: protect it and your backups. No session is included in the source or application bundle.
 
 While visible and idle, Lucine polls once per minute. Refresh and import do not change bulb settings. Hardware commands occur only on user interaction. Brightness and white controls are disabled while a bulb is off.
+
+## Zones and automatic startup
+
+Open **Impostazioni → Zone nella tray**, enter a name and select at least one bulb, then choose **Crea zona**. Existing zones can be edited or deleted. Membership is stored locally in `zones.json` next to the session, with private filesystem permissions; it is not a cloud room or a shared configuration.
+
+Each tray zone has separate **Accendi** and **Spegni** actions. Lucine rechecks the current account's supported devices before sending commands. Missing or offline bulbs produce partial failures without preventing the remaining bulbs from completing. Already matching bulbs are left alone. Up to four bulbs run concurrently; repeated tray clicks are blocked while a zone action is pending. The tray reports confirmed results, and failures open the window for review. Changing a zone never sends commands.
+
+Enable **Avvia Lucine all’accesso a Linux** only if wanted. This starts the app after logging into the desktop, not before login or as a system service. Startup opens in the tray and never switches bulbs automatically. It uses the executable / AppImage path from which the setting is enabled: move the AppImage to a permanent location first, and disable then re-enable this option if that path changes. Development builds also register their own build path if you enable the setting there.
 
 ## Checks
 

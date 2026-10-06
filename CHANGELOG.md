@@ -6,6 +6,10 @@ This document records user-visible changes and limitations. Changes follow Keep 
 
 ### Added
 
+- User-defined local zones with tray power commands, bounded concurrency and partial-failure reporting.
+- Optional Linux login startup in the tray and single-instance window reopening.
+- Settings editor for zone creation, membership changes and deletion, with hardware-free regression tests.
+
 - Experimental Linux Tauri desktop client with dynamic compact lamp rows and tray controls.
 - Power, brightness and warm / neutral / cool white commands for service product ID `12`.
 - Session import, read-only CLI probe and per-device command confirmation.

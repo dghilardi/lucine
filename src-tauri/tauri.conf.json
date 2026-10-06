@@ -3,10 +3,35 @@
   "productName": "Lucine",
   "version": "0.1.0",
   "identifier": "it.local.lucine",
-  "build": {"beforeDevCommand": "npm run dev", "beforeBuildCommand": "npm run build", "devUrl": "http://127.0.0.1:1420", "frontendDist": "../dist"},
-  "app": {
-    "windows": [{"title": "Lucine", "width": 820, "height": 640, "minWidth": 600, "minHeight": 520}],
-    "security": {"csp": "default-src 'self'; connect-src ipc: http://ipc.localhost; img-src 'self' asset: http://asset.localhost data:; style-src 'self' 'unsafe-inline'"}
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "beforeBuildCommand": "npm run build",
+    "devUrl": "http://127.0.0.1:1420",
+    "frontendDist": "../dist"
   },
-  "bundle": {"active": true, "targets": ["deb", "appimage"], "icon": ["icons/icon.png"]}
+  "app": {
+    "windows": [
+      {
+        "title": "Lucine",
+        "width": 820,
+        "height": 640,
+        "minWidth": 600,
+        "minHeight": 520,
+        "visible": false
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; connect-src ipc: http://ipc.localhost; img-src 'self' asset: http://asset.localhost data:; style-src 'self' 'unsafe-inline'"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": [
+      "deb",
+      "appimage"
+    ],
+    "icon": [
+      "icons/icon.png"
+    ]
+  }
 }

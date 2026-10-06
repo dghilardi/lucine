@@ -204,11 +204,95 @@ impl Backend {
             .get(id)
             .cloned()
             .ok_or("Aggiorna l’elenco prima di inviare un comando.")?;
-        let current = exchange(&session, &device, None).await?;
-        let request = build_command(kind, value, &current)?;
-        let result = exchange(&session, &device, Some(request)).await?;
-        Ok(decode_state(&result))
+        control_device(&session, &device, kind, value).await
     }
+
+    pub async fn power_zone(&self, ids: &[String], on: bool) -> Result<Vec<Lamp>, String> {
+        let _guard = self
+            .gate
+            .try_lock()
+            .map_err(|_| "Attendi il completamento dell’operazione in corso.")?;
+        let session = self.get_session().await?;
+        let devices = self.fetch_devices(&session).await?;
+        *self.devices.lock().await = devices.iter().map(|d| (d.id.clone(), d.clone())).collect();
+        let (selected, mut missing) = select_zone(devices, ids)?;
+        let mut lamps = apply_zone(selected, move |device| {
+            let session = session.clone();
+            async move { control_device(&session, &device, "power", u64::from(on)).await }
+        })
+        .await;
+        lamps.append(&mut missing);
+        Ok(lamps)
+    }
+}
+
+async fn control_device(
+    session: &Session,
+    device: &Device,
+    kind: &str,
+    value: u64,
+) -> Result<LampState, String> {
+    let current = exchange(session, device, None).await?;
+    let request = build_command(kind, value, &current)?;
+    if kind == "power" && decode_state(&current).on == (value == 1) {
+        return Ok(decode_state(&current));
+    }
+    let result = exchange(session, device, Some(request)).await?;
+    Ok(decode_state(&result))
+}
+
+fn select_zone(devices: Vec<Device>, ids: &[String]) -> Result<(Vec<Device>, Vec<Lamp>), String> {
+    if ids.is_empty() || ids.len() > 128 {
+        return Err("La zona non contiene lampadine valide.".into());
+    }
+    let wanted: std::collections::HashSet<_> = ids.iter().collect();
+    let selected: Vec<_> = devices
+        .into_iter()
+        .filter(|d| wanted.contains(&d.id))
+        .collect();
+    let found: std::collections::HashSet<_> = selected.iter().map(|d| &d.id).collect();
+    let missing = wanted
+        .into_iter()
+        .filter(|id| !found.contains(id))
+        .map(|id| Lamp {
+            id: id.clone(),
+            name: "Lampadina non disponibile".into(),
+            state: None,
+            error: Some("Non è associata all’account corrente o non è supportata.".into()),
+        })
+        .collect();
+    Ok((selected, missing))
+}
+
+async fn apply_zone<F, Fut>(devices: Vec<Device>, operation: F) -> Vec<Lamp>
+where
+    F: Fn(Device) -> Fut,
+    Fut: std::future::Future<Output = Result<LampState, String>> + Send + 'static,
+{
+    let mut lamps = Vec::new();
+    for batch in devices.chunks(4) {
+        let mut jobs = Vec::new();
+        for device in batch {
+            let future = operation(device.clone());
+            jobs.push((device.clone(), tokio::spawn(future)));
+        }
+        for (device, job) in jobs {
+            let result = job
+                .await
+                .unwrap_or_else(|_| Err("Operazione interrotta.".into()));
+            let (state, error) = match result {
+                Ok(state) => (Some(state), None),
+                Err(error) => (None, Some(error)),
+            };
+            lamps.push(Lamp {
+                id: device.id,
+                name: device.alias,
+                state,
+                error,
+            });
+        }
+    }
+    lamps
 }
 
 // Only manufacturer DNS names are accepted: an imported file must not redirect tokens.
@@ -648,5 +732,60 @@ mod tests {
         assert!(read_session(&path).is_err());
         std::fs::write(&path, serde_json::to_vec(&demo_session()).unwrap()).unwrap();
         assert!(read_session(&path).is_ok());
+    }
+    fn demo_device(id: &str) -> Device {
+        serde_json::from_value(json!({"ID":id,"product_id":"12","alias":"Lampadina demo","mqtt":{"domain":"test.iotdreamcatcher.net","port":8883,"token":"synthetic-test-value"}})).unwrap()
+    }
+    #[test]
+    fn zone_selection_is_deduplicated_and_scoped_to_current_account() {
+        let (selected, missing) = select_zone(
+            vec![demo_device("demo-1"), demo_device("demo-2")],
+            &["demo-1".into(), "demo-1".into(), "demo-old".into()],
+        )
+        .unwrap();
+        assert_eq!(selected.len(), 1);
+        assert_eq!(selected[0].id, "demo-1");
+        assert_eq!(missing.len(), 1);
+        assert!(missing[0].state.is_none());
+        assert!(select_zone(vec![], &[]).is_err());
+    }
+    #[tokio::test]
+    async fn zone_failure_does_not_prevent_other_bulbs_from_completing() {
+        let results = apply_zone(
+            vec![demo_device("demo-1"), demo_device("demo-2")],
+            |device| async move {
+                if device.id == "demo-1" {
+                    Err("Offline".into())
+                } else {
+                    Ok(decode_state(&json!({"mo":160,"ls":100})))
+                }
+            },
+        )
+        .await;
+        assert!(results[0].error.is_some());
+        assert!(results[1].state.is_some());
+    }
+    #[tokio::test]
+    async fn zone_work_never_exceeds_four_concurrent_bulbs() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        let active = Arc::new(AtomicUsize::new(0));
+        let peak = Arc::new(AtomicUsize::new(0));
+        let devices = (0..10).map(|i| demo_device(&format!("demo-{i}"))).collect();
+        let results = apply_zone(devices, |device| {
+            let active = active.clone();
+            let peak = peak.clone();
+            async move {
+                let count = active.fetch_add(1, Ordering::SeqCst) + 1;
+                peak.fetch_max(count, Ordering::SeqCst);
+                tokio::task::yield_now().await;
+                active.fetch_sub(1, Ordering::SeqCst);
+                let _ = device;
+                Ok(decode_state(&json!({"mo":160,"ls":100})))
+            }
+        })
+        .await;
+        assert_eq!(results.len(), 10);
+        assert!(peak.load(Ordering::SeqCst) <= 4);
+        assert_eq!(active.load(Ordering::SeqCst), 0);
     }
 }
