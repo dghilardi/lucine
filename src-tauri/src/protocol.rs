@@ -1,3 +1,6 @@
+use crate::cloud::Catalog;
+#[path = "cloud_backend.rs"]
+mod cloud_backend;
 use crate::scenes::{validate_targets, Target};
 use rumqttc::{
     AsyncClient, Event, MqttOptions, Outgoing, Packet, QoS, TlsConfiguration, Transport,
@@ -83,6 +86,7 @@ pub struct Backend {
     devices: Mutex<HashMap<String, Device>>,
     gate: Mutex<()>,
     http: reqwest::Client,
+    cloud_cache: Mutex<Option<Catalog>>,
 }
 
 impl Backend {
@@ -94,6 +98,7 @@ impl Backend {
             session_path,
             session: Mutex::new(session),
             devices: Mutex::new(HashMap::new()),
+            cloud_cache: Mutex::new(None),
             gate: Mutex::new(()),
             http: reqwest::Client::builder()
                 .redirect(reqwest::redirect::Policy::none())
@@ -112,6 +117,7 @@ impl Backend {
         save_session(&self.session_path, &session)?;
         *self.session.lock().await = Some(session);
         self.devices.lock().await.clear();
+        *self.cloud_cache.lock().await = None;
         Ok(())
     }
 
