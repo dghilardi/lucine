@@ -281,7 +281,7 @@ async fn control_device(
 fn validate_zone_command(kind: &str, value: u64) -> Result<(), String> {
     if matches!(
         (kind, value),
-        ("power", 0..=1) | ("brightness", 1..=100) | ("white", 160..=162)
+        ("power", 0..=1) | ("brightness", 1..=100) | ("white", 160 | 162)
     ) {
         Ok(())
     } else {
@@ -512,12 +512,16 @@ fn build_command(kind: &str, value: u64, current: &Value) -> Result<Value, Strin
         "power" if value <= 1 => {
             Ok(json!({"a":"value_set","mo":if value == 1 {225} else {224},"rand":0}))
         }
-        "white" if (160..=162).contains(&value) => Ok(json!({"a":"value_set","mo":value,"rand":0})),
+        "white" if matches!(value, 160 | 162) => {
+            let brightness = u64::from(decode_state(current).brightness);
+            let level = 20 + ((brightness * 155 + 50) / 100);
+            Ok(json!({"a":"value_set","mo":value,"ls":level,"rand":0}))
+        }
         "brightness" if (1..=100).contains(&value) => {
             let mode = current["mo"]
                 .as_u64()
                 .ok_or("Stato della lampadina incompleto.")?;
-            if (160..=168).contains(&mode) {
+            if (160..=168).contains(&mode) && mode != 161 {
                 let level = 20 + ((value * 155 + 50) / 100);
                 Ok(json!({"a":"value_set","mo":mode,"ls":level,"rand":0}))
             } else if mode == 129 {
@@ -674,7 +678,6 @@ fn decode_state(raw: &Value) -> LampState {
         brightness: (((level - min) / range * 100.0).round().clamp(1.0, 100.0)) as u8,
         white: match mode {
             160 => Some("warm".into()),
-            161 => Some("neutral".into()),
             162 => Some("cool".into()),
             _ => None,
         },
@@ -903,7 +906,7 @@ mod tests {
         let target = Target {
             device_id: "demo-1".into(),
             on: true,
-            white: Some(161),
+            white: Some(162),
             brightness: Some(35),
         };
         let mut calls = Vec::new();
@@ -912,7 +915,7 @@ mod tests {
             async {
                 Ok(LampState {
                     on: true,
-                    mode: 161,
+                    mode: 162,
                     brightness: 35,
                     white: None,
                 })
@@ -922,7 +925,7 @@ mod tests {
         .unwrap();
         assert_eq!(
             calls,
-            vec![("power", 1), ("white", 161), ("brightness", 35)]
+            vec![("power", 1), ("white", 162), ("brightness", 35)]
         );
         assert_eq!(result.brightness, 35);
         calls.clear();
@@ -943,7 +946,7 @@ mod tests {
         })
         .await
         .is_err());
-        assert_eq!(calls, vec![("power", 1), ("white", 161)]);
+        assert_eq!(calls, vec![("power", 1), ("white", 162)]);
         calls.clear();
         let off = Target {
             on: false,
@@ -977,5 +980,20 @@ mod tests {
         let unrelated =
             serde_json::to_vec(&json!({"m":{"res":{"a":"value_set","mo":160,"ls":100}}})).unwrap();
         assert!(fresh_state(&unrelated, false, true).is_none());
+    }
+    #[test]
+    fn white_commands_include_brightness_and_reject_unverified_neutral() {
+        let state = json!({"mo":160,"ls":100});
+        for mode in [160, 162] {
+            let command = build_command("white", mode, &state).unwrap();
+            assert_eq!(command["mo"], mode);
+            assert!(command["ls"]
+                .as_u64()
+                .is_some_and(|level| (20..=175).contains(&level)));
+            assert!(!confirms(&json!({"mo":mode,"ls":20}), &command));
+        }
+        assert!(build_command("white", 161, &state).is_err());
+        assert!(validate_zone_command("white", 161).is_err());
+        assert!(build_command("brightness", 50, &json!({"mo":161,"ls":100})).is_err());
     }
 }

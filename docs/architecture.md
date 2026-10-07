@@ -26,7 +26,7 @@ The request envelope is `m.req`; supported state responses are `m.res` with acti
 
 A mutation is successful only after the bulb reports a matching state, including white coordinates when supplied. Publishing alone is not a success acknowledgment. The backend serializes refresh, import and control; state reads across bulbs run concurrently. UI controls are disabled during their pending operations, and a command failure requires a fresh read before that bulb can be controlled again.
 
-State queries and command confirmations reject retained MQTT messages and responses received before the query has been sent. An explicit power command is always published, even when the preceding state reports the same power setting.
+State queries and command confirmations reject retained MQTT messages and responses received before the query has been sent. An explicit power command is always published, even when the preceding state reports the same power setting. White preset requests include both mode and brightness. Mode `161` is not exposed or emitted: previous neutral scenes are preserved for editing but rejected before activation; brightness commands cannot propagate that legacy mode.
 
 ## Review boundaries
 
@@ -40,6 +40,6 @@ Zones contain generated UUIDs, user-chosen names and device IDs, without credent
 
 Startup registration uses the official Tauri autostart plugin through narrow Rust commands with sanitized errors. Plugin webview permissions are not granted. Registration is off until explicitly requested and launches with `--background`. The native window starts hidden to avoid a login-time flash, then is shown for manual launches. The single-instance plugin is registered first and brings forward an existing manual session; background repeat launches leave it hidden. Linux desktop-session startup is separate from bulb power and does not schedule hardware commands.
 
-Scene targets are strictly validated before network access: 1–128 unique supported-format device IDs; on targets require brightness 1–100 and white mode 160–162, while off targets carry neither field. Local scene IDs are generated UUIDs and names are bounded; unknown JSON fields are rejected. Zone brightness / white actions check fresh device state before mutation and report off bulbs without turning them on.
+Scene targets are strictly validated before network access: 1–128 unique supported-format device IDs; on targets require brightness 1–100 and white mode 160 or 162, while off targets carry neither field. Local scene IDs are generated UUIDs and names are bounded; unknown JSON fields are rejected. Zone brightness / white actions check fresh device state before mutation and report off bulbs without turning them on.
 
 A shared native action path coordinates tray and window requests, blocks duplicate group actions, emits pending / result events, and updates the tray. Saved membership is resolved against fresh account discovery for every activation. Scenes confirm power, white, then brightness in order per bulb; failure stops remaining steps for that bulb. There is no automatic retry or rollback of earlier confirmed steps. No scene runs merely by saving it, launching the app or reading configuration. Local stores use bounded 1 MiB reads, atomic replacements and private file permissions, and corrupt files are not silently overwritten.

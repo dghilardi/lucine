@@ -10,7 +10,7 @@ let root: HTMLElement;
 const demoScene: Scene = {
   id: "00000000-0000-4000-8000-000000000001",
   name: "Scena demo",
-  targets: [{ deviceId: "demo-1", on: true, brightness: 30, white: 161 }],
+  targets: [{ deviceId: "demo-1", on: true, brightness: 30, white: 162 }],
 };
 const lamps = () => [
   {
@@ -47,7 +47,7 @@ describe("local scenes", () => {
     include(0);
     include(1);
     row(0).querySelector<HTMLInputElement>(".target-brightness")!.value = "30";
-    row(0).querySelector<HTMLSelectElement>(".target-white")!.value = "161";
+    row(0).querySelector<HTMLSelectElement>(".target-white")!.value = "162";
     const power = row(1).querySelector<HTMLSelectElement>(".target-power")!;
     power.value = "off";
     power.dispatchEvent(new Event("change"));
@@ -147,5 +147,28 @@ describe("local scenes", () => {
     await flush();
     expect(invoke).not.toHaveBeenCalled();
     expect(name().disabled).toBe(true);
+  });
+  it("requires choosing a supported white mode when editing a legacy neutral scene", async () => {
+    invoke.mockResolvedValue([
+      { ...demoScene, targets: [{ ...demoScene.targets[0], white: 161 }] },
+    ]);
+    await scenesEditor(root, lamps)();
+    root.querySelector<HTMLButtonElement>("#scene-list button")!.click();
+    expect(row().querySelector<HTMLSelectElement>(".target-white")!.value).toBe(
+      "161",
+    );
+    submit();
+    await flush();
+    expect(
+      invoke.mock.calls.filter(([command]) => command === "save_scene"),
+    ).toHaveLength(0);
+    row().querySelector<HTMLSelectElement>(".target-white")!.value = "160";
+    submit();
+    await flush();
+    expect(invoke).toHaveBeenCalledWith("save_scene", {
+      id: demoScene.id,
+      name: demoScene.name,
+      targets: [{ ...demoScene.targets[0], white: 160 }],
+    });
   });
 });

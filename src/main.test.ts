@@ -244,4 +244,25 @@ describe("lamp controls", () => {
     expect(power().disabled).toBe(false);
     expect(power().getAttribute("aria-checked")).toBe("false");
   });
+  it("keeps safe white recovery available for legacy unsupported mode without a neutral control", async () => {
+    invoke.mockResolvedValue([
+      {
+        ...demo()[0],
+        state: { on: true, mode: 161, brightness: 40, white: null },
+      },
+    ]);
+    await start();
+    expect(range().disabled).toBe(true);
+    const buttons = Array.from(
+      document.querySelectorAll<HTMLButtonElement>(".white-control button"),
+    );
+    expect(buttons.map((button) => button.dataset.mode)).toEqual([
+      "160",
+      "162",
+    ]);
+    expect(buttons.every((button) => !button.disabled)).toBe(true);
+    expect(document.querySelector(".lamp-description")!.textContent).toContain(
+      "non supportata",
+    );
+  });
 });

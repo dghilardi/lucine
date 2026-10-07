@@ -181,14 +181,7 @@ fn tray_menu(
                     .map(|v| (v, format!("{v}%")))
                     .collect(),
             ),
-            (
-                "white",
-                vec![
-                    (160, "Caldo".into()),
-                    (161, "Neutro".into()),
-                    (162, "Freddo".into()),
-                ],
-            ),
+            ("white", vec![(160, "Caldo".into()), (162, "Freddo".into())]),
         ] {
             let submenu = Submenu::new(
                 app,

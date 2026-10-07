@@ -13,11 +13,18 @@ pub struct Target {
 }
 
 pub fn validate_targets(targets: &[Target]) -> Result<(), String> {
+    validate_targets_inner(targets, false)
+}
+
+fn validate_targets_inner(targets: &[Target], allow_legacy: bool) -> Result<(), String> {
     let mut ids = HashSet::new();
     if targets.is_empty() || targets.len() > 128 {
         return Err("Scegli da 1 a 128 lampadine.".into());
     }
     for target in targets {
+        if !allow_legacy && target.white == Some(161) {
+            return Err("Il vecchio preset Neutro non è supportato. Modifica la scena scegliendo Caldo o Freddo.".into());
+        }
         if target.device_id.is_empty()
             || target.device_id.len() > 128
             || !target
@@ -27,7 +34,9 @@ pub fn validate_targets(targets: &[Target]) -> Result<(), String> {
             || !ids.insert(&target.device_id)
             || (target.on
                 && (!target.brightness.is_some_and(|b| (1..=100).contains(&b))
-                    || !target.white.is_some_and(|w| (160..=162).contains(&w))))
+                    || !target
+                        .white
+                        .is_some_and(|w| matches!(w, 160 | 162) || (allow_legacy && w == 161))))
             || (!target.on && (target.brightness.is_some() || target.white.is_some()))
         {
             return Err(
@@ -72,6 +81,7 @@ impl Scenes {
         name: String,
         targets: Vec<Target>,
     ) -> Result<Vec<Scene>, String> {
+        validate_targets(&targets)?;
         let mut values = self.values.lock().await;
         let mut next = values.clone()?;
         let scene = Scene {
@@ -123,7 +133,7 @@ fn validate(scenes: &[Scene]) -> Result<(), String> {
         {
             return Err("Scegli un nome valido per la scena.".into());
         }
-        validate_targets(&scene.targets)?;
+        validate_targets_inner(&scene.targets, true)?;
     }
     Ok(())
 }
@@ -210,5 +220,35 @@ mod tests {
             .await
             .is_err());
         assert_eq!(std::fs::read_to_string(path).unwrap(), "broken");
+    }
+    #[tokio::test]
+    async fn legacy_neutral_scenes_remain_editable_but_cannot_run_or_be_saved() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("scenes.json");
+        let legacy = Scene {
+            id: uuid::Uuid::new_v4().to_string(),
+            name: "Scena demo precedente".into(),
+            targets: vec![Target {
+                white: Some(161),
+                ..target()
+            }],
+        };
+        write_local(&path, std::slice::from_ref(&legacy)).unwrap();
+        let store = Scenes::new(path.clone());
+        let loaded = store.list().await.unwrap();
+        assert_eq!(loaded[0].targets[0].white, Some(161));
+        assert!(validate_targets(&loaded[0].targets).is_err());
+        assert!(store
+            .save(Some(legacy.id.clone()), legacy.name.clone(), legacy.targets)
+            .await
+            .is_err());
+        store
+            .save(Some(legacy.id), "Scena corretta".into(), vec![target()])
+            .await
+            .unwrap();
+        assert_eq!(
+            Scenes::new(path).list().await.unwrap()[0].targets[0].white,
+            Some(160)
+        );
     }
 }
