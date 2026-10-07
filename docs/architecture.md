@@ -26,6 +26,8 @@ The request envelope is `m.req`; supported state responses are `m.res` with acti
 
 A mutation is successful only after the bulb reports a matching state, including white coordinates when supplied. Publishing alone is not a success acknowledgment. The backend serializes refresh, import and control; state reads across bulbs run concurrently. UI controls are disabled during their pending operations, and a command failure requires a fresh read before that bulb can be controlled again.
 
+State queries and command confirmations reject retained MQTT messages and responses received before the query has been sent. An explicit power command is always published, even when the preceding state reports the same power setting.
+
 ## Review boundaries
 
 Unit tests cover protocol edge cases, endpoint validation and credential file permissions. UI tests cover preview isolation, command debounce, error handling, text injection and dynamic names. Tests and CI are hardware-free. No telemetry, analytics, background login automation or public credential collection is implemented.
