@@ -1,8 +1,10 @@
+mod cloud;
 mod local_store;
 mod protocol;
 mod scenes;
 mod zones;
 
+use cloud::{Catalog, RoomDraft, SceneDraft};
 use protocol::{Backend, Lamp, LampState};
 use scenes::{Scene, Scenes, Target};
 use std::{
@@ -38,6 +40,71 @@ async fn control(
 #[tauri::command]
 async fn import_session(backend: State<'_, Arc<Backend>>, path: String) -> Result<(), String> {
     backend.import(&path).await
+}
+
+#[tauri::command]
+async fn cloud_catalog(
+    app: tauri::AppHandle,
+    backend: State<'_, Arc<Backend>>,
+) -> Result<Catalog, String> {
+    let result = backend.cloud_catalog().await;
+    let _ = update_tray(&app).await;
+    result
+}
+#[tauri::command]
+async fn save_cloud_room(
+    app: tauri::AppHandle,
+    backend: State<'_, Arc<Backend>>,
+    draft: RoomDraft,
+) -> Result<Catalog, String> {
+    let result = backend.save_cloud_room(draft).await;
+    update_saved_groups(&app).await;
+    result
+}
+#[tauri::command]
+async fn delete_cloud_room(
+    app: tauri::AppHandle,
+    backend: State<'_, Arc<Backend>>,
+    id: u64,
+    revision: String,
+) -> Result<Catalog, String> {
+    let result = backend.delete_cloud_room(id, &revision).await;
+    update_saved_groups(&app).await;
+    result
+}
+#[tauri::command]
+async fn save_cloud_scene(
+    app: tauri::AppHandle,
+    backend: State<'_, Arc<Backend>>,
+    draft: SceneDraft,
+) -> Result<Catalog, String> {
+    let result = backend.save_cloud_scene(draft).await;
+    update_saved_groups(&app).await;
+    result
+}
+#[tauri::command]
+async fn delete_cloud_scene(
+    app: tauri::AppHandle,
+    backend: State<'_, Arc<Backend>>,
+    id: String,
+    revision: String,
+) -> Result<Catalog, String> {
+    let result = backend.delete_cloud_scene(&id, &revision).await;
+    update_saved_groups(&app).await;
+    result
+}
+#[tauri::command]
+async fn run_cloud_room(
+    app: tauri::AppHandle,
+    id: u64,
+    kind: String,
+    value: u64,
+) -> Result<Vec<Lamp>, String> {
+    run_action(&app, DesktopAction::CloudRoom { id, kind, value }).await
+}
+#[tauri::command]
+async fn run_cloud_scene(app: tauri::AppHandle, id: String) -> Result<Vec<Lamp>, String> {
+    run_action(&app, DesktopAction::CloudScene { id }).await
 }
 
 #[tauri::command]
@@ -143,6 +210,14 @@ async fn run_scene(app: tauri::AppHandle, id: String) -> Result<Vec<Lamp>, Strin
 }
 
 enum DesktopAction {
+    CloudRoom {
+        id: u64,
+        kind: String,
+        value: u64,
+    },
+    CloudScene {
+        id: String,
+    },
     Zone {
         id: String,
         kind: String,
@@ -157,6 +232,7 @@ fn tray_menu(
     app: &tauri::AppHandle,
     zones: &[Zone],
     scenes: &[Scene],
+    cloud: Option<&Catalog>,
 ) -> tauri::Result<Menu<tauri::Wry>> {
     let menu = Menu::new(app)?;
     menu.append(&MenuItem::with_id(
@@ -220,7 +296,7 @@ fn tray_menu(
             None::<&str>,
         )?)?;
     }
-    let scene_menu = Submenu::new(app, "Scene", true)?;
+    let scene_menu = Submenu::new(app, "Scene locali", true)?;
     for scene in scenes {
         scene_menu.append(&MenuItem::with_id(
             app,
@@ -239,6 +315,55 @@ fn tray_menu(
         )?)?;
     }
     menu.append(&scene_menu)?;
+    if let Some(cloud) = cloud {
+        let rooms = Submenu::new(app, "Stanze Android", true)?;
+        for room in &cloud.rooms {
+            let group = Submenu::new(app, &room.name, true)?;
+            for (kind, value, label) in [
+                ("power", 1, "Accendi"),
+                ("power", 0, "Spegni"),
+                ("white", 160, "Bianco caldo"),
+                ("white", 162, "Bianco freddo"),
+            ] {
+                group.append(&MenuItem::with_id(
+                    app,
+                    format!("cloud-room:{}:{kind}:{value}", room.id),
+                    label,
+                    available && !room.device_ids.is_empty(),
+                    None::<&str>,
+                )?)?;
+            }
+            rooms.append(&group)?;
+        }
+        if cloud.rooms.is_empty() {
+            rooms.append(&MenuItem::new(
+                app,
+                "Nessuna stanza cloud",
+                false,
+                None::<&str>,
+            )?)?;
+        }
+        menu.append(&rooms)?;
+        let scenes = Submenu::new(app, "Scene Android", true)?;
+        for scene in &cloud.scenes {
+            scenes.append(&MenuItem::with_id(
+                app,
+                format!("cloud-scene:{}", scene.id),
+                &scene.name,
+                available && scene.editable,
+                None::<&str>,
+            )?)?;
+        }
+        if cloud.scenes.is_empty() {
+            scenes.append(&MenuItem::new(
+                app,
+                "Nessuna scena cloud",
+                false,
+                None::<&str>,
+            )?)?;
+        }
+        menu.append(&scenes)?;
+    }
     let status = MenuItem::with_id(app, "status", "Pronto", false, None::<&str>)?;
     menu.append(&status)?;
     *app.state::<TrayStatus>().item.lock().unwrap() = Some(status);
@@ -250,11 +375,12 @@ async fn update_tray(app: &tauri::AppHandle) -> Result<(), String> {
     // An unreadable section must not remove the other section's valid shortcuts.
     let zones = app.state::<Zones>().list().await.unwrap_or_default();
     let scenes = app.state::<Scenes>().list().await.unwrap_or_default();
+    let cloud = app.state::<Arc<Backend>>().cached_cloud_catalog().await;
     let tray = app
         .tray_by_id("main-tray")
         .ok_or("La tray non è disponibile.")?;
     tray.set_menu(Some(
-        tray_menu(app, &zones, &scenes)
+        tray_menu(app, &zones, &scenes, cloud.as_ref())
             .map_err(|_| "Non riesco ad aggiornare il menu della tray.")?,
     ))
     .map_err(|_| "Non riesco ad aggiornare il menu della tray.".into())
@@ -279,6 +405,20 @@ fn show_window(app: &tauri::AppHandle) {
 }
 
 fn tray_action(id: &str) -> Option<DesktopAction> {
+    if let Some(id) = id.strip_prefix("cloud-scene:") {
+        return Some(DesktopAction::CloudScene { id: id.into() });
+    }
+    if let Some(id) = id.strip_prefix("cloud-room:") {
+        let parts: Vec<_> = id.split(':').collect();
+        if parts.len() != 3 {
+            return None;
+        }
+        return Some(DesktopAction::CloudRoom {
+            id: parts[0].parse().ok()?,
+            kind: parts[1].into(),
+            value: parts[2].parse().ok()?,
+        });
+    }
     if let Some(id) = id.strip_prefix("scene:") {
         return Some(DesktopAction::Scene { id: id.into() });
     }
@@ -306,6 +446,14 @@ async fn run_action(app: &tauri::AppHandle, action: DesktopAction) -> Result<Vec
             let _ = item.set_text("Operazione in corso…");
         }
         match action {
+            DesktopAction::CloudRoom { id, kind, value } => {
+                app.state::<Arc<Backend>>()
+                    .control_cloud_room(id, &kind, value)
+                    .await
+            }
+            DesktopAction::CloudScene { id } => {
+                app.state::<Arc<Backend>>().apply_cloud_scene(&id).await
+            }
             DesktopAction::Zone { id, kind, value } => {
                 let zones = app.state::<Zones>().list().await?;
                 let zone = zones
@@ -416,6 +564,13 @@ pub fn run() {
         .manage(TrayStatus::default())
         .manage(backend)
         .invoke_handler(tauri::generate_handler![
+            cloud_catalog,
+            save_cloud_room,
+            delete_cloud_room,
+            save_cloud_scene,
+            delete_cloud_scene,
+            run_cloud_room,
+            run_cloud_scene,
             refresh,
             control,
             import_session,
@@ -435,7 +590,7 @@ pub fn run() {
                 tauri::async_runtime::block_on(app.state::<Zones>().list()).unwrap_or_default();
             let scenes =
                 tauri::async_runtime::block_on(app.state::<Scenes>().list()).unwrap_or_default();
-            let menu = tray_menu(app.handle(), &zones, &scenes)?;
+            let menu = tray_menu(app.handle(), &zones, &scenes, None)?;
             let icon = tauri::image::Image::from_bytes(include_bytes!("../icons/icon.png"))?;
             TrayIconBuilder::with_id("main-tray")
                 .icon(icon)
