@@ -4,6 +4,10 @@ This document records user-visible changes and limitations. Changes follow Keep 
 
 ## Unreleased
 
+### Fixed
+
+- Ignored retained and pre-query MQTT responses, and always sent explicitly requested power commands.
+
 ### Added
 
 - Zone brightness and white controls in the window and tray, preserving off bulbs.

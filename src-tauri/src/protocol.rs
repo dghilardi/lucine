@@ -1,5 +1,7 @@
 use crate::scenes::{validate_targets, Target};
-use rumqttc::{AsyncClient, Event, MqttOptions, Packet, QoS, TlsConfiguration, Transport};
+use rumqttc::{
+    AsyncClient, Event, MqttOptions, Outgoing, Packet, QoS, TlsConfiguration, Transport,
+};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::{
@@ -321,9 +323,6 @@ async fn control_device_checked(
         check_zone_state(&current, kind)?;
     }
     let request = build_command(kind, value, &current)?;
-    if kind == "power" && decode_state(&current).on == (value == 1) {
-        return Ok(decode_state(&current));
-    }
     let result = exchange(session, device, Some(request)).await?;
     Ok(decode_state(&result))
 }
@@ -555,6 +554,15 @@ fn confirms(raw: &Value, command: &Value) -> bool {
         })
 }
 
+fn fresh_state(payload: &[u8], retained: bool, query_sent: bool) -> Option<Value> {
+    if retained || !query_sent {
+        return None;
+    }
+    let raw: Value = serde_json::from_slice(payload).ok()?;
+    let state = raw.get("m")?.get("res")?;
+    (state["a"] == "bulb_conf" && valid_state(state)).then(|| state.clone())
+}
+
 async fn exchange(
     session: &Session,
     device: &Device,
@@ -582,6 +590,8 @@ async fn exchange(
     let state_topic = format!("smart/{}/dc/{}/dout/#", device.id, device.product_id);
     let query = json!({"m":{"req":{"a":"bulb_conf"}}}).to_string();
     let result = tokio::time::timeout(Duration::from_secs(12), async {
+        let required_publishes = if command.is_some() { 2 } else { 1 };
+        let mut sent_publishes = 0;
         loop {
             let event = events
                 .poll()
@@ -621,22 +631,26 @@ async fn exchange(
                         .await
                         .map_err(|_| "Lettura dello stato non riuscita.")?;
                 }
+                Event::Outgoing(Outgoing::Publish(_)) => {
+                    sent_publishes += 1;
+                }
                 Event::Incoming(Packet::Publish(message)) => {
-                    if let Ok(raw) = serde_json::from_slice::<Value>(&message.payload) {
-                        if let Some(state) = raw.get("m").and_then(|m| m.get("res")) {
-                            if state["a"] == "bulb_conf" && valid_state(state) {
-                                if command.as_ref().is_none_or(|cmd| confirms(state, cmd)) {
-                                    return Ok(state.clone());
-                                }
-                                tokio::time::sleep(Duration::from_millis(150)).await;
-                                client
-                                    .publish(&topic, QoS::AtMostOnce, false, query.as_str())
-                                    .await
-                                    .map_err(|_| "Verifica del comando non riuscita.")?;
-                            }
+                    if let Some(state) = fresh_state(
+                        &message.payload,
+                        message.retain,
+                        sent_publishes >= required_publishes,
+                    ) {
+                        if command.as_ref().is_none_or(|cmd| confirms(&state, cmd)) {
+                            return Ok(state);
                         }
+                        tokio::time::sleep(Duration::from_millis(150)).await;
+                        client
+                            .publish(&topic, QoS::AtMostOnce, false, query.as_str())
+                            .await
+                            .map_err(|_| "Verifica del comando non riuscita.")?;
                     }
                 }
+
                 _ => {}
             }
         }
@@ -951,5 +965,17 @@ mod tests {
         .await
         .unwrap();
         assert_eq!(calls, vec![("power", 0)]);
+    }
+    #[test]
+    fn retained_or_pre_query_state_cannot_confirm_a_command() {
+        let payload =
+            serde_json::to_vec(&json!({"m":{"res":{"a":"bulb_conf","mo":160,"ls":100}}})).unwrap();
+        assert!(fresh_state(&payload, true, true).is_none());
+        assert!(fresh_state(&payload, false, false).is_none());
+        assert!(fresh_state(&payload, false, true).is_some());
+        assert!(fresh_state(b"not-json", false, true).is_none());
+        let unrelated =
+            serde_json::to_vec(&json!({"m":{"res":{"a":"value_set","mo":160,"ls":100}}})).unwrap();
+        assert!(fresh_state(&unrelated, false, true).is_none());
     }
 }
