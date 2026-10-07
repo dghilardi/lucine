@@ -12,7 +12,10 @@ This document defines the support boundary. Expand it only with reproducible, au
 | Local LAN control, pairing, account creation, desktop login / renewal | Not implemented |
 | Local zone grouping / tray power / optional login startup | Implemented; hardware-free tests cover grouping and UI behavior; no new live-hardware tests for zone commands |
 | Local scene activation and zone brightness / white | Implemented using existing supported commands; covered by synthetic tests, without new live-hardware validation |
-| Cloud rooms / scenes import, timers / schedules | Not implemented |
+| Cloud rooms: discovery, create, rename, membership, delete | Implemented and checked with authorized temporary configurations; membership only for product-ID-12 bulbs |
+| Cloud manual scenes: power tasks, create, edit, delete | Implemented with authorized app / native metadata comparisons; unknown tasks, devices and automations are read-only |
+| Cloud scene activation | Translates supported power tasks into the existing MQTT path; no new physical-output validation for this feature |
+| Cloud rules, timers / schedules, execution history | Not implemented |
 | Linux | Initial target; other operating systems are untested |
 
 Device enumeration is dynamic. Unsupported product IDs are ignored; Lucine does not probe other accounts, devices or topics. The number of rows is not fixed to an installation.

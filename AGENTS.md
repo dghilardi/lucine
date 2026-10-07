@@ -4,7 +4,7 @@ This file defines repository scope and working rules for coding agents. User ins
 
 ## Scope
 
-Maintain an independent, experimental Linux Tauri utility for product-ID-12 white bulbs. Device discovery must remain account-driven; never hard-code a user's installation. Keep support claims narrow and evidence-based. Desktop login, pairing, other device categories, extraction tools and local-LAN control are outside the current implementation.
+Maintain an independent, experimental Linux Tauri utility for product-ID-12 white bulbs. Device discovery must remain account-driven; never hard-code a user's installation. Keep support claims narrow and evidence-based. Cloud room CRUD and manual power-scene CRUD are within scope; other cloud automations and task formats must remain read-only. Desktop login, pairing, other device categories, extraction tools and local-LAN control are outside the current implementation.
 
 ## Privacy and provenance
 
@@ -12,6 +12,7 @@ Maintain an independent, experimental Linux Tauri utility for product-ID-12 whit
 - Never stage `.analysis/`, `captures/`, `secrets/`, session files, emulator artifacts, vendor APKs, decompiled source, native vendor libraries or authenticated screenshots.
 - Use invented fixtures. Do not copy device names, states, IDs, account details or local paths into tests, docs or demos.
 - Keep credential-bearing network requests in Rust, validate destinations, preserve TLS verification and sanitized errors, and never log tokens.
+- The only query-token exception is the verified `PUT /v2/user/device/account` membership endpoint. Never log its URL, extend it to other endpoints or expose raw cloud configurations over IPC.
 - Do not weaken domain validation or add manufacturer identity headers without a documented reason and review.
 - Do not claim clean-room analysis, official approval, guaranteed legal safety or account safety. Do not copy vendor code or assets.
 

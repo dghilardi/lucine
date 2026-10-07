@@ -12,6 +12,10 @@ This document records user-visible changes and limitations. Changes follow Keep 
 
 ### Added
 
+- Android cloud rooms: shared discovery, creation, renaming, supported-bulb membership, deletion and window / tray control.
+- Android cloud manual power scenes: shared creation, editing and deletion, with explicit window / tray activation through MQTT.
+- Revision checks, verified metadata outcomes, uncertain-write recovery and read-only handling for unsupported cloud automations.
+
 - Zone brightness and white controls in the window and tray, preserving off bulbs.
 - Local scene editor with per-bulb targets and explicit activation from the window / tray.
 - Shared private configuration persistence and hardware-free scene regression tests.
@@ -29,7 +33,7 @@ This document records user-visible changes and limitations. Changes follow Keep 
 ### Security
 
 - Credential tokens remain in the native backend and private session files.
-- TLS endpoint validation, rejected redirects and no tokens in authenticated URLs.
+- TLS endpoint validation and rejected redirects. Authentication uses headers except for the verified cloud-membership endpoint, whose credential-bearing URL is never logged.
 - Atomic credential-file replacement with Linux `0600` permissions.
 - Publication guard and full-history secret scan.
 
