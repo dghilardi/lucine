@@ -10,7 +10,9 @@ Lucine is an independent project, unaffiliated with Chuango or DreamCatcher. Tho
 - Power, brightness and warm / cool white controls.
 - Device-confirmed state, per-bulb connection errors and manual refresh.
 - Light / dark system theme and keyboard controls.
-- Custom zones with power, brightness and warm / cool white controls from the window and tray.
+- Cloud rooms shared with Android: create, rename and assign supported bulbs; control them from the window and tray.
+- Cloud manual power scenes shared with Android: create, edit, delete and activate supported scenes.
+- Custom local zones with power, brightness and warm / cool white controls from the window and tray.
 - Local scenes with distinct power, brightness and white settings for each bulb, activated from the window or tray.
 - Optional launch at Linux login, initially disabled, opening in the tray.
 - System tray with **Apri Lucine** and **Esci**. Closing the window hides it in the tray; repeated launches reopen the existing instance.
@@ -58,13 +60,23 @@ The local session is stored in `$XDG_CONFIG_HOME/it.local.lucine/session.json`, 
 
 While visible and idle, Lucine polls once per minute. Refresh and import do not change bulb settings. Hardware commands occur only on user interaction. Brightness and white controls are disabled while a bulb is off.
 
+## Rooms and scenes shared with Android
+
+Open **Impostazioni → Condivisi con Android** and expand **Stanze Android** or **Scene Android**. These are the account’s cloud definitions, not copies of local zones or scenes. Creation, edits and deletion are reflected in DreamCatcher Life after it refreshes. Supported bulbs can belong to only one Android room: selecting a bulb moves it from its previous room; deselecting a current member leaves it unassigned. Other device categories are not moved, and rooms containing them cannot be deleted through Lucine.
+
+Cloud scenes currently support manual on/off tasks for product-ID-12 bulbs. Cloud scenes with timers, rules, extra task parameters, unknown fields or other devices remain visible but cannot be edited, deleted or activated through Lucine. Use Android for those definitions. Local scenes still offer brightness and warm / cool settings and remain separate.
+
+Use **Stanze e scene Android** in the window or the **Stanze Android / Scene Android** tray menus for explicit control. Room brightness and white affect only bulbs that are already on. Lucine rereads the cloud definition before each action and runs supported scene power tasks through its existing MQTT command path; it does not invoke the vendor’s automation engine or synchronize execution history. Saving metadata does not activate a scene or change bulb power.
+
+Cloud metadata refreshes after a successful lamp refresh, including at startup and during the visible-window polling cycle; **Aggiorna dal cloud** rereads it on demand. No authenticated cloud configuration is persisted as a public fixture or an offline cache. Older cloud data becomes unavailable after a failed read. Reopen the editor after a change made on Android: a revision check prevents overwriting a configuration that changed since editing began. The service has no verified atomic compare-and-swap or multi-request transaction, so a concurrent edit can still occur during a save. Membership updates can partially succeed. After an error or unconfirmed response, refresh and inspect the result before retrying; Lucine does not automatically repeat writes.
+
 ## Zones and automatic startup
 
-Open **Impostazioni → Zone nella tray**, enter a name and select at least one bulb, then choose **Crea zona**. Existing zones can be edited or deleted. Membership is stored locally in `zones.json` next to the session, with private filesystem permissions; it is not a cloud room or a shared configuration.
+Open **Impostazioni → Zone locali nella tray**, enter a name and select at least one bulb, then choose **Crea zona**. Existing zones can be edited or deleted. Membership is stored locally in `zones.json` next to the session, with private filesystem permissions; it is not a cloud room or a shared configuration.
 
 Expand **Zone e scene** in the window to choose a zone and apply power, brightness (1–100%) or a white preset. Each tray zone also offers **Accendi**, **Spegni**, brightness shortcuts (25 / 50 / 75 / 100%) and white presets. Brightness and white adjustments require bulbs to be on: off bulbs stay off and are reported individually. Lucine rechecks the current account's supported devices before sending commands. Missing or offline bulbs produce partial failures without preventing the remaining bulbs from completing. Explicit power requests are always sent, even if the reported power state already matches. Up to four bulbs run concurrently; repeated tray clicks are blocked while a zone action is pending. The tray reports confirmed results, and failures open the window for review. Changing a zone never sends commands.
 
-Open **Impostazioni → Scene locali** to name a scene and select its bulbs. For each selected bulb choose **Accesa** with brightness and white, or **Spenta**. Saving, editing or deleting a scene never sends hardware commands. Activate it explicitly from **Zone e scene** or **Scene** in the tray. Scenes are stored privately in local `scenes.json`, next to the session; they do not import, modify or synchronize the manufacturer's cloud scenes or rooms.
+Open **Impostazioni → Scene locali** to name a scene and select its bulbs. For each selected bulb choose **Accesa** with brightness and white, or **Spenta**. Saving, editing or deleting a scene never sends hardware commands. Activate it explicitly from **Zone e scene** or **Scene locali** in the tray. Scenes are stored privately in local `scenes.json`, next to the session; they do not import, modify or synchronize the manufacturer's cloud scenes or rooms.
 
 Scenes use the same account checks and concurrency limit as zones. For an on target, Lucine confirms power, then white, then brightness; an off target only switches off. A failure stops subsequent steps for that bulb and leaves other bulbs running. There is no atomic multi-device transaction or rollback: an earlier step may have succeeded before a later failure. Review errors and refresh before retrying. Scenes do not run at startup, and timers / schedules are not implemented.
 

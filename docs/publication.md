@@ -15,7 +15,7 @@ Names and protocol field / action names identify the third-party system being in
 - Replaced installation-derived demo names and states with invented fixtures.
 - Removed an installation-specific live test and exploratory / credential extraction tools from the public source.
 - Replaced workstation-specific documentation with reproducible setup instructions.
-- Removed unnecessary Android identity headers and authenticated URL token parameters; a read-only request confirmed the simpler authentication path.
+- Removed unnecessary Android identity headers and authenticated URL token parameters; a read-only request confirmed the simpler authentication path. Subsequent cloud membership observations required a narrow query-token exception for `PUT /v2/user/device/account`; it retains TLS, destination validation and sanitized errors. Other endpoints remain header-only.
 - Restricted account / broker endpoints to vendor DNS suffixes, disabled REST redirects, validated MQTT topic fragments and kept TLS verification enabled.
 - Made credential persistence atomic and private; unknown credential fields are discarded.
 - Added hardware-free backend / UI regression tests, formatting checks, publication checks and Git-history secret scanning.
@@ -27,3 +27,7 @@ On 2026-10-06 the English terms page served at the URL selected by the Android a
 The EU [Directive 2009/24/EC](https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:32009L0024) distinguishes ideas / principles from protected expression in Article 1(2), permits certain authorized observation in Article 5(3), and sets conditional interoperability provisions in Article 6. Those provisions are limited; they do not establish that this particular analysis, publication or cloud usage is lawful in every jurisdiction. Publishing decompiled source or copying protected expression is outside this project's scope.
 
 No manufacturer approval or jurisdiction-specific legal review has been obtained. Removing proprietary artifacts and account data reduces exposure but cannot guarantee freedom from complaints, enforcement or account restrictions. Obtain professional advice or written provider permission if that assurance is required. There is no instruction here to evade service controls, bypass authentication, disrupt the cloud or access another person's devices.
+
+## Cloud metadata extension
+
+The room and manual power-scene integration adds original Rust / TypeScript code and invented test fixtures. Authorized temporary configurations were used to compare Android-created definitions with native CRUD and membership updates, and then removed. Endpoint and schema discovery was informed by the same private app examination described above; no vendor source, implementation fragments, assets or authenticated evidence is published. This extends interoperability, not provider approval or the legal / account-safety assurances stated earlier.
