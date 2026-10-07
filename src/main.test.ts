@@ -57,6 +57,12 @@ afterEach(() => {
 });
 
 async function start() {
+  const previous = invoke.getMockImplementation();
+  invoke.mockImplementation((command: string, ...args: unknown[]) =>
+    command === "cloud_catalog"
+      ? Promise.resolve({ rooms: [], scenes: [], devices: [] })
+      : previous?.(command, ...args),
+  );
   await import("./main");
   await flush();
 }
@@ -65,7 +71,7 @@ describe("lamp controls", () => {
   it("loads state without sending commands and renders names as text", async () => {
     invoke.mockResolvedValue(demo("<img src=x onerror=alert(1)>"));
     await start();
-    expect(invoke.mock.calls).toEqual([["refresh"]]);
+    expect(invoke.mock.calls).toEqual([["refresh"], ["cloud_catalog"]]);
     expect(document.querySelector("h3")!.textContent).toContain("<img");
     expect(document.querySelector(".lamp-row img")).toBeNull();
   });
@@ -85,6 +91,7 @@ describe("lamp controls", () => {
     await vi.advanceTimersByTimeAsync(300);
     expect(invoke.mock.calls).toEqual([
       ["refresh"],
+      ["cloud_catalog"],
       ["control", { id: "demo-device", kind: "brightness", value: 70 }],
     ]);
   });
@@ -104,6 +111,7 @@ describe("lamp controls", () => {
     await vi.advanceTimersByTimeAsync(400);
     expect(invoke.mock.calls).toEqual([
       ["refresh"],
+      ["cloud_catalog"],
       ["control", { id: "demo-device", kind: "power", value: 0 }],
     ]);
     expect(range().disabled).toBe(true);
@@ -127,7 +135,7 @@ describe("lamp controls", () => {
     range().dispatchEvent(new Event("pointerup"));
     document.querySelector<HTMLButtonElement>("#refresh")!.click();
     await flush();
-    expect(invoke).toHaveBeenCalledTimes(2);
+    expect(invoke).toHaveBeenCalledTimes(4);
   });
 
   it("updates a renamed lamp without replacing its controls", async () => {
@@ -175,7 +183,7 @@ describe("lamp controls", () => {
     listeners.get("zone-busy")!({ payload: true });
     expect(power().disabled).toBe(true);
     await vi.advanceTimersByTimeAsync(400);
-    expect(invoke.mock.calls).toEqual([["refresh"]]);
+    expect(invoke.mock.calls).toEqual([["refresh"], ["cloud_catalog"]]);
     listeners.get("zone-busy")!({ payload: false });
     expect(power().disabled).toBe(false);
   });
@@ -196,7 +204,7 @@ describe("lamp controls", () => {
     expect(document.querySelector("#notice")!.textContent).toBe(
       "Zona aggiornata",
     );
-    expect(invoke.mock.calls).toEqual([["refresh"]]);
+    expect(invoke.mock.calls).toEqual([["refresh"], ["cloud_catalog"]]);
   });
   it("blocks lamp controls immediately when a zone shortcut starts", async () => {
     invoke.mockImplementation(async (command: string) => {

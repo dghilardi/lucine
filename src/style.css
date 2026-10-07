@@ -578,17 +578,17 @@ dialog .check-row input {
   gap: 10px;
 }
 
-#group-shortcuts {
+:is(#group-shortcuts, #cloud-shortcuts) {
   border-top: 1px solid var(--line);
   padding-top: 18px;
   margin: 18px 0;
 }
-#group-shortcuts summary {
+:is(#group-shortcuts, #cloud-shortcuts) summary {
   cursor: pointer;
   font-size: 14px;
   font-weight: 600;
 }
-#group-shortcuts .field-help {
+:is(#group-shortcuts, #cloud-shortcuts) .field-help {
   font-size: 12px;
   line-height: 1.6;
   color: var(--muted);
@@ -605,13 +605,13 @@ dialog .check-row input {
   gap: 12px;
   margin: 16px 0;
 }
-#group-shortcuts label,
+:is(#group-shortcuts, #cloud-shortcuts) label,
 .target-controls label {
   font-size: 12px;
   color: var(--muted);
 }
-#group-shortcuts input,
-#group-shortcuts select,
+:is(#group-shortcuts, #cloud-shortcuts) input,
+:is(#group-shortcuts, #cloud-shortcuts) select,
 dialog select {
   display: block;
   width: 100%;
@@ -623,8 +623,8 @@ dialog select {
   border: 1px solid var(--line);
   border-radius: 7px;
 }
-#group-shortcuts input:disabled,
-#group-shortcuts select:disabled,
+:is(#group-shortcuts, #cloud-shortcuts) input:disabled,
+:is(#group-shortcuts, #cloud-shortcuts) select:disabled,
 dialog select:disabled {
   opacity: 0.5;
 }
@@ -662,4 +662,39 @@ dialog select:disabled {
   white-space: normal;
   overflow-wrap: anywhere;
   text-align: left;
+}
+
+.cloud-editor {
+  margin-top: 18px;
+}
+.cloud-editor summary {
+  cursor: pointer;
+  font-weight: 600;
+  padding: 10px 0;
+}
+.cloud-editor form {
+  margin-top: 14px;
+}
+.cloud-target {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(100px, 140px);
+  gap: 14px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+.cloud-target .check-row {
+  overflow-wrap: anywhere;
+}
+.cloud-target > label {
+  font-size: 12px;
+  color: var(--muted);
+}
+#cloud-shortcuts {
+  margin-top: 24px;
+}
+@media (max-width: 560px) {
+  .cloud-target {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
 }
