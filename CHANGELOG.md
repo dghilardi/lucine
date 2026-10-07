@@ -6,6 +6,8 @@ This document records user-visible changes and limitations. Changes follow Keep 
 
 ### Fixed
 
+- Removed the unverified neutral (`161`) preset from controls and prevented legacy scenes from activating until corrected; existing scenes remain editable.
+- Included brightness when selecting warm / cool white presets, matching observed app commands.
 - Ignored retained and pre-query MQTT responses, and always sent explicitly requested power commands.
 
 ### Added
@@ -19,7 +21,7 @@ This document records user-visible changes and limitations. Changes follow Keep 
 - Settings editor for zone creation, membership changes and deletion, with hardware-free regression tests.
 
 - Experimental Linux Tauri desktop client with dynamic compact lamp rows and tray controls.
-- Power, brightness and warm / neutral / cool white commands for service product ID `12`.
+- Power, brightness and warm / cool white commands for service product ID `12`.
 - Session import, read-only CLI probe and per-device command confirmation.
 - Invented browser demo, hardware-free protocol and interaction tests, and CI checks.
 - Scope, compatibility, security, provenance and contribution documentation.

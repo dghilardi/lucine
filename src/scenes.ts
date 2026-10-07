@@ -72,7 +72,7 @@ export function scenesEditor(root: HTMLElement, lamps: () => Choice[]) {
       const row = document.createElement("div");
       row.className = "scene-target";
       row.dataset.id = lamp.id;
-      row.innerHTML = `<label class="check-row"><input type="checkbox" class="include-target"><span></span></label><div class="target-controls"><label>Stato<select class="target-power"><option value="on">Accesa</option><option value="off">Spenta</option></select></label><label>Bianco<select class="target-white"><option value="160">Caldo</option><option value="161">Neutro</option><option value="162">Freddo</option></select></label><label>Luminosità %<input class="target-brightness" type="number" min="1" max="100" step="1" required></label></div>`;
+      row.innerHTML = `<label class="check-row"><input type="checkbox" class="include-target"><span></span></label><div class="target-controls"><label>Stato<select class="target-power"><option value="on">Accesa</option><option value="off">Spenta</option></select></label><label>Bianco<select class="target-white"><option value="160">Caldo</option><option value="162">Freddo</option></select></label><label>Luminosità %<input class="target-brightness" type="number" min="1" max="100" step="1" required></label></div>`;
       row.querySelector(".check-row span")!.textContent = lamp.name;
       const include = row.querySelector<HTMLInputElement>(".include-target")!;
       const power = row.querySelector<HTMLSelectElement>(".target-power")!;
@@ -81,9 +81,16 @@ export function scenesEditor(root: HTMLElement, lamps: () => Choice[]) {
         row.querySelector<HTMLInputElement>(".target-brightness")!;
       include.checked = !!target;
       power.value = (target?.on ?? lamp.state?.on ?? true) ? "on" : "off";
+      if (target?.white === 161) {
+        const option = document.createElement("option");
+        option.value = "161";
+        option.textContent = "Non supportato: scegli un bianco";
+        option.disabled = true;
+        white.append(option);
+      }
       white.value = String(
         target?.white ??
-          (lamp.state && [160, 161, 162].includes(lamp.state.mode)
+          (lamp.state && [160, 162].includes(lamp.state.mode)
             ? lamp.state.mode
             : 160),
       );
@@ -173,13 +180,14 @@ export function scenesEditor(root: HTMLElement, lamps: () => Choice[]) {
         selected.some(
           (t) =>
             t.on &&
-            (!Number.isInteger(t.brightness) ||
+            (![160, 162].includes(t.white!) ||
+              !Number.isInteger(t.brightness) ||
               t.brightness! < 1 ||
               t.brightness! > 100),
         )
       ) {
         report(
-          "Scegli un nome, almeno una lampadina e luminosità da 1 a 100%.",
+          "Scegli un nome, almeno una lampadina, bianco caldo o freddo e luminosità da 1 a 100%.",
         );
         return;
       }

@@ -15,9 +15,9 @@
     "name": "Lampadina demo 2",
     "state": {
       "on": true,
-      "mode": 161,
+      "mode": 160,
       "brightness": 70,
-      "white": "neutral"
+      "white": "warm"
     },
     "error": null
   },

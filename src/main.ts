@@ -55,7 +55,7 @@ document.querySelector<HTMLDivElement>("#app")!.innerHTML = `
     <section id="scene-settings" class="settings-section"></section>
     <section class="settings-section"><h3>Account DreamCatcher Life</h3><form id="session-form"><p>Importa una sessione autorizzata dell’app Android. Dopo l’importazione puoi controllare le luci senza tenere aperto l’emulatore.</p><label for="session-path">File della sessione</label><input id="session-path" type="text" placeholder="/percorso/session.json" required autocomplete="off" spellcheck="false"><p class="field-help">Il token resta sul tuo PC. Se la sessione scade, importa un file aggiornato.</p><p id="session-error" class="error" role="alert" hidden></p><button id="import" class="primary-button" type="submit">Importa sessione <i data-lucide="arrow-right"></i></button></form></section>
   </dialog>
-  <template id="lamp-template"><article class="lamp-row"><div class="lamp-top"><div class="lamp-title"><span class="lamp-icon"><i data-lucide="lightbulb"></i></span><div><h3></h3><span class="lamp-description">Lettura dello stato…</span></div></div><button class="power-button" type="button" role="switch" aria-checked="false"><span class="switch-track"><span></span></span><span class="power-label">In attesa</span></button></div><div class="lamp-controls"><div class="brightness-control"><div class="control-label"><label>Luminosità</label><output>—</output></div><input class="brightness" type="range" min="1" max="100" step="1" value="1"></div><fieldset class="white-control"><legend>Bianco</legend><div class="segmented"><button type="button" data-mode="160">Caldo</button><button type="button" data-mode="161">Neutro</button><button type="button" data-mode="162">Freddo</button></div></fieldset></div><p class="lamp-error error" role="alert" hidden></p></article></template>`;
+  <template id="lamp-template"><article class="lamp-row"><div class="lamp-top"><div class="lamp-title"><span class="lamp-icon"><i data-lucide="lightbulb"></i></span><div><h3></h3><span class="lamp-description">Lettura dello stato…</span></div></div><button class="power-button" type="button" role="switch" aria-checked="false"><span class="switch-track"><span></span></span><span class="power-label">In attesa</span></button></div><div class="lamp-controls"><div class="brightness-control"><div class="control-label"><label>Luminosità</label><output>—</output></div><input class="brightness" type="range" min="1" max="100" step="1" value="1"></div><fieldset class="white-control"><legend>Bianco</legend><div class="segmented"><button type="button" data-mode="160">Caldo</button><button type="button" data-mode="162">Freddo</button></div></fieldset></div><p class="lamp-error error" role="alert" hidden></p></article></template>`;
 
 const $ = <T extends HTMLElement = HTMLElement>(selector: string) =>
   document.querySelector<T>(selector)!;
@@ -93,7 +93,7 @@ function describe(state: State | null) {
       {
         129: "Bianco personalizzato",
         160: "Bianco caldo",
-        161: "Bianco neutro",
+        161: "Modalità non supportata: scegli Caldo o Freddo",
         162: "Bianco freddo",
         163: "Modalità notte",
         164: "Comfort",
@@ -218,7 +218,8 @@ function render() {
           refreshing ||
           pending ||
           !lamp.state ||
-          (!lamp.state.on && !control.classList.contains("power-button"));
+          (!lamp.state.on && !control.classList.contains("power-button")) ||
+          (lamp.state.mode === 161 && control.classList.contains("brightness"));
       });
     const error = row.querySelector<HTMLElement>(".lamp-error")!;
     error.hidden = !lamp.error;

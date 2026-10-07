@@ -7,10 +7,10 @@ Lucine is an independent project, unaffiliated with Chuango or DreamCatcher. Tho
 ## Features
 
 - Compact rows show the bulbs returned by your account; no device IDs or names are built in.
-- Power, brightness and warm / neutral / cool white controls.
+- Power, brightness and warm / cool white controls.
 - Device-confirmed state, per-bulb connection errors and manual refresh.
 - Light / dark system theme and keyboard controls.
-- Custom zones with power, brightness and warm / neutral / cool white controls from the window and tray.
+- Custom zones with power, brightness and warm / cool white controls from the window and tray.
 - Local scenes with distinct power, brightness and white settings for each bulb, activated from the window or tray.
 - Optional launch at Linux login, initially disabled, opening in the tray.
 - System tray with **Apri Lucine** and **Esci**. Closing the window hides it in the tray; repeated launches reopen the existing instance.
@@ -22,6 +22,8 @@ Compatibility is currently limited to white bulbs identified by the service as `
 An authenticated session must be imported. Desktop login and automatic session renewal are **not implemented**. You need Internet and a valid account with access to your own bulbs; no emulator is needed during normal use. Lucine cannot create a session for you.
 
 The cloud interface is undocumented and may change. Third-party access has not been approved by the manufacturer. This project cannot promise that using it complies with every applicable account agreement or that an account will never be restricted. Read [publication and interoperability notes](docs/publication.md) before using it.
+
+The previous “Neutro” preset (`161`) was unverified and has been removed. Existing scenes containing it remain editable, but must be changed to **Caldo** or **Freddo** before activation. White preset commands include brightness. MQTT state reads and confirmations ignore retained broker snapshots and require a response after the query is sent; the reported state is a device confirmation, not optical proof that LEDs are emitting light.
 
 ## Build and run
 
